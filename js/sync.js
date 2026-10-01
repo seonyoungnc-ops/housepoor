@@ -153,8 +153,8 @@
     }).then(function (report) {
       running = false;
       setBadge('ok');
-      if (UI.view === 'settings') UI.render();
-      else UI.render();
+      /* 입력 중이면 건드리지 않는다 (토큰 붙여넣기가 날아가는 것을 막는다) */
+      if (!UI.isTyping()) UI.render();
       if (!silent) {
         var added = report.tx + report.goals;
         UI.toast(added ? '동기화 완료 · 새 항목 ' + added + '건' : '동기화 완료');
@@ -310,7 +310,11 @@
   function schedule() {
     if (!configured() || !cfg().auto) return;
     clearTimeout(autoT);
-    autoT = setTimeout(function () { run(true); }, 4000);
+    autoT = setTimeout(function () {
+      /* 아직 입력 중이면 더 기다린다 */
+      if (UI.isTyping()) { schedule(); return; }
+      run(true);
+    }, 4000);
   }
 
   global.Sync = {

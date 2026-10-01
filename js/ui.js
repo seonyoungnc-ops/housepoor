@@ -498,7 +498,12 @@
       '<div class="field"><label>브랜치</label><input type="text" data-sync="branch" value="' + esc(sy.branch) + '" placeholder="main"></div>' +
       '</div>' +
       '<div class="field"><label>액세스 토큰 (Contents: Read and write)</label>' +
-      '<input type="password" data-sync="token" value="' + esc(sy.token) + '" placeholder="github_pat_..." autocomplete="off"></div>' +
+      '<input type="password" data-sync="token" value="' + esc(sy.token) + '" placeholder="github_pat_..."' +
+      ' autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>' +
+      '<div class="hint">저장된 토큰: ' + (sy.token
+        ? esc(String(sy.token).slice(0, 11)) + '… <b>' + String(sy.token).length + '자</b>' +
+          (String(sy.token).length < 40 ? ' <span class="a exp">← 너무 짧아요. 전체가 붙여넣어지지 않았어요</span>' : ' ✓')
+        : '없음') + '</div>' +
       '<div class="row wrap">' +
       '<button class="btn b" data-act="sync:now">지금 동기화</button>' +
       '<button class="btn" data-act="sync:test">연결 확인</button>' +
@@ -681,8 +686,39 @@
     document.getElementById('rail').innerHTML = TABS.map(mk).join('');
   }
 
+  /* 사용자가 입력 중인지 — 다시 그리면 입력값과 포커스가 날아간다 */
+  function isTyping() {
+    var ae = document.activeElement;
+    if (!ae || !/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return false;
+    var v = document.getElementById('view');
+    return !!(v && v.contains(ae));
+  }
+
+  /* 입력이 끝날 때까지 미뤄둔 렌더를 스스로 재시도한다
+     (focusout 이 안 올 수도 있어 타이머로도 확인) */
+  var pendT = null;
+  function schedulePending() {
+    clearTimeout(pendT);
+    pendT = setTimeout(flushPending, 700);
+  }
+  function flushPending() {
+    if (!UI.pendingRender) return;
+    if (isTyping()) { schedulePending(); return; }
+    var o = UI.pendingRender;
+    UI.pendingRender = null;
+    render(o);
+  }
+
   /* opts.top: true → 맨 위로. 기본은 스크롤 위치 유지(클릭 시 화면이 튀지 않게) */
   function render(opts) {
+    /* 입력 중이면 미뤘다가 끝난 뒤에 그린다 */
+    if (!(opts && opts.force) && isTyping()) {
+      UI.pendingRender = opts || {};
+      schedulePending();
+      return;
+    }
+    clearTimeout(pendT);
+    UI.pendingRender = null;
     var y = window.scrollY || document.documentElement.scrollTop || 0;
     var out = (VIEWS[UI.view] || viewHome)();
     var v = document.getElementById('view');
@@ -714,7 +750,7 @@
   }
 
   global.UI = Object.assign(UI, {
-    render: render, renderSheet: renderSheet, openTxSheet: openTxSheet,
+    render: render, isTyping: isTyping, flushPending: flushPending, renderSheet: renderSheet, openTxSheet: openTxSheet,
     readSheet: readSheet, closeSheet: closeSheet, toast: toast,
     repaintBuildings: repaintBuildings, paintBuilding: paintBuilding,
     TYPE_META: TYPE_META, short: short, esc: esc

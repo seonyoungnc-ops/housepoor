@@ -101,6 +101,11 @@
     }
   });
 
+  /* 입력이 끝나면 미뤄둔 렌더를 수행한다 */
+  document.addEventListener('focusout', function () {
+    setTimeout(function () { UI.flushPending(); }, 120);
+  });
+
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el.id === 'importFile') { readImport(el); return; }
