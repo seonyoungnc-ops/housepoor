@@ -264,7 +264,10 @@
         var added = 0;
         S.fixedList().forEach(function (f2) {
           if (done[f2.id]) return;
+          /* 고정지출·월 단위로 id 를 고정한다.
+             두 기기에서 각각 눌러도 병합 때 한 건으로 합쳐진다. */
           S.addTx({
+            id: 'fx-' + f2.id + '-' + ymA,
             type: 'expense', amount: f2.amount, cat: f2.cat, method: f2.method || 'cash',
             date: ymA + '-' + String(f2.day).padStart(2, '0'),
             memo: f2.name, fixedId: f2.id
@@ -279,10 +282,10 @@
 
       /* ---- 멤버 ---- */
       case 'mem:add':
-        if (!S.addMember('배우자')) { UI.toast('2명까지만 등록할 수 있어요'); return; }
+        if (!S.addMember('')) { UI.toast('2명까지만 등록할 수 있어요'); return; }
         UI.render(); UI.toast('함께 쓰는 사람을 추가했어요'); Sync.schedule(); return;
       case 'mem:me':
-        S.state.me = id; S.save(); UI.render(); return;
+        S.setMe(id); UI.render(); UI.toast('이 기기의 사용자를 지정했어요'); return;
       case 'mem:del':
         askConfirm('이 사람을 삭제할까요?', '이미 기록된 내역의 작성자 표시만 사라집니다.', '삭제', function () {
           S.removeMember(id); UI.render(); Sync.schedule();

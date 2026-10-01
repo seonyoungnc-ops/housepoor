@@ -160,7 +160,11 @@
     return fetch(url(), {
       method: 'PUT', headers: headers(), body: JSON.stringify(body)
     }).then(function (res) {
-      if (!res.ok) throw new Error(msg(res));
+      if (!res.ok) {
+        var err = new Error(msg(res));
+        err.status = res.status;
+        throw err;
+      }
       return res.json().then(function (j) {
         return j.content && j.content.sha;
       });
@@ -168,17 +172,11 @@
   }
 
   var running = false;
+  var again = false;
 
-  /* 전체 동기화 : 받아서 병합하고 다시 올린다 */
-  function run(silent) {
-    if (!configured()) {
-      if (!silent) UI.toast('먼저 저장소와 토큰을 입력해 주세요');
-      return Promise.resolve(null);
-    }
-    if (running) return Promise.resolve(null);
-    running = true;
-    setBadge('sync');
-
+  /* 받기 → 병합 → 올리기. 그 사이 다른 기기가 먼저 올려 sha 가 어긋나면(409)
+     다시 받아서 병합한 뒤 올린다. 그냥 실패시키면 내 변경이 올라가지 않는다. */
+  function cycle(tries) {
     return pull().then(function (r) {
       var report = { tx: 0, goals: 0, members: 0, settings: false };
       if (r.data) report = Store.mergeRemote(r.data);
@@ -188,8 +186,28 @@
         Store.save();
         return report;
       });
-    }).then(function (report) {
+    }).catch(function (e) {
+      if (tries > 0 && e && e.status === 409) return cycle(tries - 1);
+      throw e;
+    });
+  }
+
+  /* 전체 동기화 : 받아서 병합하고 다시 올린다 */
+  function run(silent) {
+    if (!configured()) {
+      if (!silent) UI.toast('먼저 저장소와 토큰을 입력해 주세요');
+      return Promise.resolve(null);
+    }
+    /* 진행 중에 들어온 요청은 버리지 않고, 끝난 뒤 한 번 더 돌린다
+       (그 사이 저장한 내역이 다음 앱 실행까지 안 올라가는 것을 막는다) */
+    if (running) { again = true; return Promise.resolve(null); }
+    running = true;
+    again = false;
+    setBadge('sync');
+
+    return cycle(2).then(function (report) {
       running = false;
+      if (again) { again = false; setTimeout(function () { run(true); }, 300); }
       setBadge('ok');
       /* 입력 중이면 건드리지 않는다 (토큰 붙여넣기가 날아가는 것을 막는다) */
       if (!UI.isTyping()) UI.render();

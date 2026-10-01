@@ -79,15 +79,18 @@
       '" aria-label="' + esc(name) + '">';
   }
 
+  /* 이름은 기본값 없이 비워 두므로 화면에 보일 때만 안내 문구를 쓴다 */
+  function mname(m) { return (m && m.name) || '이름 없음'; }
+
   function dot(m) {
-    return '<span class="mdot" style="background:' + m.color + '" title="' + esc(m.name) + '"></span>';
+    return '<span class="mdot" style="background:' + m.color + '" title="' + esc(mname(m)) + '"></span>';
   }
 
   function txRow(t) {
     var m = TYPE_META[t.type] || TYPE_META.expense;
     var c = S.cat(t.type, t.cat);
     var multi = S.state.members.length > 1;
-    var who = multi ? dot(S.member(t.by)) + S.member(t.by).name + ' · ' : '';
+    var who = multi ? dot(S.member(t.by)) + esc(mname(S.member(t.by))) + ' · ' : '';
     var pay = (t.type === 'expense' && S.method) ? esc(S.method(t.method).short) + ' · ' : '';
     return '<div class="tx" data-act="tx:edit" data-id="' + t.id + '">' +
       spr(c.spr) +
@@ -136,6 +139,18 @@
   }
 
   /* ---------- 홈 ---------- */
+  /* 둘이 쓰는데 이 기기 주인을 아직 안 골랐으면 먼저 고르게 한다.
+     고르기 전까지는 기록이 다른 사람 이름으로 저장될 수 있다. */
+  function whoAmIBox() {
+    if (!S.needsMe()) return '';
+    var h = '<div class="warn-box" style="margin-bottom:12px"><b>이 기기를 쓰는 사람은 누구인가요?</b><br>' +
+      '골라야 기록이 올바른 사람 이름으로 저장돼요.<div class="row wrap" style="margin-top:8px">';
+    S.state.members.forEach(function (m) {
+      h += '<button class="btn sm" data-act="mem:me" data-id="' + m.id + '">' + dot(m) + esc(mname(m)) + '</button>';
+    });
+    return h + '</div></div>';
+  }
+
   function viewHome() {
     var goals = S.goalsSorted();
     var g = S.activeGoal();
@@ -147,7 +162,7 @@
     var ns = C.noSpendDays(now.getFullYear(), now.getMonth());
     var streak = C.noSpendStreak();
     var budget = Number(S.state.settings.monthlyBudget) || 0;
-    var h = '';
+    var h = whoAmIBox();
 
     if (goals.length > 1) {
       h += '<div class="goalswitch">';
@@ -270,7 +285,7 @@
     var mem = C.byMember(ym, ymEnd);
     if (mem.length > 1) {
       h += '<div class="gap"></div><div class="row wrap tiny">' + mem.map(function (x) {
-        return '<span class="memchip">' + dot(x.member) + esc(x.member.name) + ' ' + short(x.amount) + '원</span>';
+        return '<span class="memchip">' + dot(x.member) + esc(mname(x.member)) + ' ' + short(x.amount) + '원</span>';
       }).join('') + '</div>';
     }
     h += '</div>';
@@ -515,7 +530,7 @@
       h += '<div class="card"><div class="card-h"><h2>누가 얼마나 썼나</h2></div>' +
         mem.map(function (x) {
           return '<div class="catrow"><span class="mdot big" style="background:' + x.member.color + '"></span>' +
-            '<div class="n">' + esc(x.member.name) + '</div>' +
+            '<div class="n">' + esc(mname(x.member)) + '</div>' +
             '<div class="bar"><i style="width:' + Math.max(3, Math.round(x.amount / memMax * 100)) + '%;background:' + x.member.color + '"></i></div>' +
             '<div class="v num">' + C.fmt(x.amount) + '</div></div>';
         }).join('') + '</div>';
@@ -866,12 +881,12 @@
       }
 
       h += '<div class="g3" style="margin-top:10px">' +
-        '<div class="field"><label>LTV (%)</label><input type="number" min="0" max="100" step="1" value="' + lp('ltv') + '" data-loan="ltv"></div>' +
-        '<div class="field"><label>금리 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + lp('rate') + '" data-loan="rate"></div>' +
-        '<div class="field"><label>기간 (년)</label><input type="number" min="1" max="50" step="1" value="' + lp('years') + '" data-loan="years"></div>' +
+        '<div class="field"><label>LTV (%)</label><input type="number" min="0" max="100" step="1" value="' + (lp('ltv') || '') + '" data-loan="ltv" placeholder="입력"></div>' +
+        '<div class="field"><label>금리 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + (lp('rate') || '') + '" data-loan="rate" placeholder="입력"></div>' +
+        '<div class="field"><label>기간 (년)</label><input type="number" min="1" max="50" step="1" value="' + (lp('years') || '') + '" data-loan="years" placeholder="입력"></div>' +
         '</div><div class="g2">' +
-        '<div class="field"><label>DSR (%) · 0이면 미적용</label><input type="number" min="0" max="100" step="1" value="' + lp('dsr') + '" data-loan="dsr"></div>' +
-        '<div class="field"><label>부대비용 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + lp('extraRate') + '" data-loan="extraRate"></div>' +
+        '<div class="field"><label>DSR (%) · 비우면 미적용</label><input type="number" min="0" max="100" step="1" value="' + (lp('dsr') || '') + '" data-loan="dsr" placeholder="입력"></div>' +
+        '<div class="field"><label>부대비용 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + (lp('extraRate') || '') + '" data-loan="extraRate" placeholder="입력"></div>' +
         '</div>' +
         '<div class="field"><label>상품 대출 한도 (비우면 제한 없음)</label>' +
         money('대출 한도', lp('maxLoan'), 'data-loan="maxLoan" data-money="1"', '제한 없음') +
@@ -904,9 +919,9 @@
     S.state.members.forEach(function (m) {
       h += '<div class="memrow">' +
         '<span class="mdot big" style="background:' + m.color + '"></span>' +
-        '<input type="text" class="grow" data-mem="' + m.id + '" value="' + esc(pend('mem', m.id, m.name)) + '" maxlength="10">' +
-        '<button class="btn sm ' + (S.state.me === m.id ? 'p' : '') + '" data-act="mem:me" data-id="' + m.id + '">' +
-        (S.state.me === m.id ? '이게 나' : '나로 지정') + '</button>' +
+        '<input type="text" class="grow" data-mem="' + m.id + '" value="' + esc(pend('mem', m.id, m.name)) + '" maxlength="10" placeholder="이름 입력">' +
+        '<button class="btn sm ' + (S.state.me === m.id && !S.needsMe() ? 'p' : '') + '" data-act="mem:me" data-id="' + m.id + '">' +
+        (S.state.me === m.id && !S.needsMe() ? '이게 나' : '나로 지정') + '</button>' +
         (S.state.members.length > 1 ? '<button class="btn sm r" data-act="mem:del" data-id="' + m.id + '">삭제</button>' : '') +
         '</div>';
     });
@@ -1051,7 +1066,7 @@
       h += '<div class="field"><label>누가</label><div class="chips">' +
         S.state.members.map(function (m) {
           return '<button class="chip ' + (d.by === m.id ? 'on' : '') + '" data-act="sheet:by" data-b="' + m.id + '">' +
-            '<span class="mdot" style="background:' + m.color + '"></span>' + esc(m.name) + '</button>';
+            '<span class="mdot" style="background:' + m.color + '"></span>' + esc(mname(m)) + '</button>';
         }).join('') + '</div></div>';
     }
 

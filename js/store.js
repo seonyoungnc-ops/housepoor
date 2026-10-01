@@ -110,11 +110,11 @@
     return null;
   }
 
+  /* 기본값은 모두 비워 둔다. 상품을 고르거나 직접 입력해야 값이 생긴다. */
   function defaultLoan() {
-    var p = PRODUCTS[0];
     return {
-      product: p.id, ltv: p.ltv, rate: p.rate, years: p.years,
-      dsr: p.dsr, maxLoan: p.maxLoan, extraRate: 3
+      product: '', ltv: 0, rate: 0, years: 0,
+      dsr: 0, maxLoan: 0, extraRate: 0
     };
   }
 
@@ -135,8 +135,10 @@
        동기화 병합에서 원격 데이터에 밀려야 하므로 현재 시각을 넣지 않는다. */
     return {
       v: VERSION,
-      members: [{ id: 'm1', name: '나', color: MEMBER_COLORS[0], updatedAt: 0 }],
+      members: [{ id: 'm1', name: '', color: MEMBER_COLORS[0], updatedAt: 0 }],
       me: 'm1',
+      /* 이 기기를 쓰는 사람을 직접 골랐는지 (기기별 값, 동기화하지 않음) */
+      meSet: false,
       goals: [{
         id: uid(), rank: 1, name: '', price: 0,
         region: '', size: '', shape: 'tower', floors: 12, theme: 'brick', memo: '',
@@ -146,6 +148,8 @@
       tx: [],
       tomb: {},
       goalTomb: {},
+      memberTomb: {},
+      itemTomb: {},
       settings: {
         assets: [],
         haveMode: 'both',
@@ -176,13 +180,19 @@
     if (!Array.isArray(s.tx)) s.tx = [];
     s.tomb = s.tomb || {};
     s.goalTomb = s.goalTomb || {};
+    s.memberTomb = s.memberTomb || {};
+    s.itemTomb = s.itemTomb || {};
+    /* 멤버가 1명뿐이면 고를 필요가 없다 */
+    if (s.members.length < 2) s.meSet = true;
 
     /* v1 → v2 : 형태/소유자/타임스탬프 보강 */
     var old = p && p.settings ? p.settings : {};
     s.goals.forEach(function (g) {
       if (!g.shape) g.shape = 'tower';
       g.floors = global.Pixel ? Pixel.clampFloors(g.shape, g.floors) : (g.floors || 10);
-      if (!g.updatedAt) g.updatedAt = now();
+      /* updatedAt 0 은 "손대지 않은 기본값" 표시라 그대로 둔다.
+         (불러올 때마다 현재 시각을 넣으면 빈 목표가 원격 목표 사이에 끼어든다) */
+      if (g.updatedAt == null) g.updatedAt = now();
     });
     s.settings.budgets = s.settings.budgets || {};
     s.settings.fixed = Array.isArray(s.settings.fixed) ? s.settings.fixed : [];
@@ -226,8 +236,9 @@
     s.tx.forEach(function (t) {
       if (!t.by) t.by = s.me;
       if (t.type === 'expense' && !t.method) t.method = 'cash';
-      if (!t.updatedAt) t.updatedAt = now();
+      if (t.updatedAt == null) t.updatedAt = now();
     });
+    s.settings.fixed.forEach(function (f) { if (f.updatedAt == null) f.updatedAt = 0; });
     if (p && p.settings && p.settings.theme && !p.theme) s.theme = p.settings.theme;
     delete s.settings.theme;
     s.v = VERSION;
@@ -321,15 +332,20 @@
   /* ---- 멤버 ---- */
   function addMember(name) {
     if (state.members.length >= 2) return null;
-    var m = { id: uid(), name: name || '함께 쓰는 사람', color: MEMBER_COLORS[state.members.length] || MEMBER_COLORS[1], updatedAt: now() };
+    var m = { id: uid(), name: name || '', color: MEMBER_COLORS[state.members.length] || MEMBER_COLORS[1], updatedAt: now() };
     state.members.push(m);
+    /* 추가하는 사람이 곧 이 기기의 주인이다 */
+    state.meSet = true;
     save();
     return m;
   }
   function removeMember(id) {
     if (state.members.length <= 1) return false;
     state.members = state.members.filter(function (m) { return m.id !== id; });
+    /* 묘비를 남겨야 다른 기기에 남은 사본이 다음 동기화 때 되살아나지 않는다 */
+    state.memberTomb[id] = now();
     if (state.me === id) state.me = state.members[0].id;
+    if (state.members.length < 2) state.meSet = true;
     save();
     return true;
   }
@@ -338,6 +354,28 @@
       { id: id, name: '알 수 없음', color: '#c2bfbb' };
   }
   function meMember() { return member(state.me); }
+  function setMe(id) {
+    if (!state.members.some(function (m) { return m.id === id; })) return;
+    state.me = id;
+    state.meSet = true;
+    save();
+  }
+  /* 둘이 쓰는데 이 기기가 누구 것인지 아직 고르지 않았다 */
+  function needsMe() { return state.members.length > 1 && !state.meSet; }
+
+  /* 멤버는 최대 2명. 두 기기에서 각자 추가해 3명 이상이 되면
+     어느 기기에서 병합하든 같은 결과가 나오도록 결정적으로 고른다
+     (내역이 많은 사람 → 기본 멤버 m1 → id 순) */
+  function capMembers(list) {
+    if (list.length <= 2) return list;
+    var cnt = {};
+    state.tx.forEach(function (t) { cnt[t.by] = (cnt[t.by] || 0) + 1; });
+    return list.slice().sort(function (a, b) {
+      return (cnt[b.id] || 0) - (cnt[a.id] || 0) ||
+        (a.id === 'm1' ? -1 : b.id === 'm1' ? 1 : 0) ||
+        (a.id < b.id ? -1 : 1);
+    }).slice(0, 2);
+  }
 
   /* ---- 동기화용 : 공유 데이터만 추출 ---- */
   function sharedPayload() {
@@ -348,6 +386,8 @@
       tx: state.tx,
       tomb: state.tomb,
       goalTomb: state.goalTomb,
+      memberTomb: state.memberTomb,
+      itemTomb: state.itemTomb,
       settings: state.settings,
       savedAt: now()
     };
@@ -387,24 +427,30 @@
       state.tx = Array.isArray(remote.tx) ? remote.tx : [];
       state.tomb = remote.tomb || {};
       state.goalTomb = remote.goalTomb || {};
+      state.memberTomb = remote.memberTomb || {};
+      state.itemTomb = remote.itemTomb || {};
       var localTheme0 = state.theme;
       state.settings = Object.assign(defaults().settings, remote.settings || {});
       delete state.settings.theme;
       state.theme = localTheme0;
       if (!state.members.some(function (m) { return m.id === keepMe; })) state.me = state.members[0].id;
+      /* 둘이 쓰는 저장소를 새 기기가 받으면 "나"를 직접 고르게 한다.
+         (기본값 m1 로 두면 상대방 기기의 기록이 전부 내 이름으로 저장된다) */
+      state.meSet = state.members.length < 2;
       sortTx();
       save();
       return { tx: state.tx.length, goals: state.goals.length, members: 0, settings: true, adopted: true };
     }
 
-    var tomb = Object.assign({}, remote.tomb || {});
-    Object.keys(state.tomb || {}).forEach(function (k) {
-      tomb[k] = Math.max(tomb[k] || 0, state.tomb[k]);
-    });
-    var gTomb = Object.assign({}, remote.goalTomb || {});
-    Object.keys(state.goalTomb || {}).forEach(function (k) {
-      gTomb[k] = Math.max(gTomb[k] || 0, state.goalTomb[k]);
-    });
+    function joinTomb(a, b) {
+      var out = Object.assign({}, a || {});
+      Object.keys(b || {}).forEach(function (k) { out[k] = Math.max(out[k] || 0, b[k]); });
+      return out;
+    }
+    var tomb = joinTomb(remote.tomb, state.tomb);
+    var gTomb = joinTomb(remote.goalTomb, state.goalTomb);
+    var mTomb = joinTomb(remote.memberTomb, state.memberTomb);
+    var iTomb = joinTomb(remote.itemTomb, state.itemTomb);
 
     function unify(localList, remoteList, tombs) {
       var out = pickById(localList), fresh = {};
@@ -432,21 +478,35 @@
     state.goals = rg.list.length ? rg.list : defaults().goals;
     report.goals = rg.added;
 
-    var rm = unify(state.members, remote.members, {});
-    state.members = rm.list.slice(0, 2);
+    var rm = unify(state.members, remote.members, mTomb);
+    state.members = capMembers(rm.list.length ? rm.list : defaults().members);
     report.members = rm.added;
-    if (!state.members.some(function (m) { return m.id === state.me; })) state.me = state.members[0].id;
+    if (!state.members.some(function (m) { return m.id === state.me; })) {
+      state.me = state.members[0].id;
+      state.meSet = false;
+    }
+    if (state.members.length < 2) state.meSet = true;
 
-    if (remote.settings && (remote.settings.updatedAt || 0) > (state.settings.updatedAt || 0)) {
-      var localTheme = state.theme;
-      state.settings = Object.assign(defaults().settings, remote.settings);
-      delete state.settings.theme;
-      state.theme = localTheme;
+    /* 설정 : 단일 값은 더 최근에 저장한 쪽, 자산·고정지출은 항목별로 합친다.
+       (통째로 덮어쓰면 한쪽 기기에서 추가한 자산·고정지출이 사라진다) */
+    var rs = remote.settings || null;
+    var localSet = state.settings;
+    var nextSet = localSet;
+    if (rs && (rs.updatedAt || 0) > (localSet.updatedAt || 0)) {
+      nextSet = Object.assign(defaults().settings, rs);
+      delete nextSet.theme;
       report.settings = true;
     }
+    if (rs) {
+      nextSet.assets = unify(localSet.assets, rs.assets, iTomb).list;
+      nextSet.fixed = unify(localSet.fixed, rs.fixed, iTomb).list;
+    }
+    state.settings = nextSet;
 
     state.tomb = prune(tomb);
     state.goalTomb = prune(gTomb);
+    state.memberTomb = prune(mTomb);
+    state.itemTomb = prune(iTomb);
     sortTx();
     save();
     return report;
@@ -468,7 +528,8 @@
     return METHODS.find(function (m) { return m.id === id; }) || METHODS[0];
   }
   function product(id) {
-    return PRODUCTS.find(function (p) { return p.id === id; }) || PRODUCTS[0];
+    /* 아직 고르지 않았으면 '직접 입력'으로 본다 (임의 상품 조건을 끼워 넣지 않는다) */
+    return PRODUCTS.find(function (p) { return p.id === id; }) || PRODUCTS[PRODUCTS.length - 1];
   }
   /* 대출 조건 : 목표와 무관하게 전역 1벌 */
   function loanCond() {
@@ -538,6 +599,7 @@
   }
   function removeAsset(id) {
     state.settings.assets = assetList().filter(function (x) { return x.id !== id; });
+    state.itemTomb[id] = now();
     touchSettings();
   }
   function assetTotal() {
@@ -563,6 +625,7 @@
     item.id = item.id || uid();
     item.amount = Math.round(Number(item.amount) || 0);
     item.day = Math.min(28, Math.max(1, Math.round(Number(item.day) || 1)));
+    item.updatedAt = now();
     state.settings.fixed.push(item);
     touchSettings();
     return item;
@@ -573,11 +636,13 @@
     Object.assign(f, patch);
     f.amount = Math.round(Number(f.amount) || 0);
     f.day = Math.min(28, Math.max(1, Math.round(Number(f.day) || 1)));
+    f.updatedAt = now();
     touchSettings();
     return f;
   }
   function removeFixed(id) {
     state.settings.fixed = fixedList().filter(function (x) { return x.id !== id; });
+    state.itemTomb[id] = now();
     touchSettings();
   }
   function fixedTotal() {
@@ -613,10 +678,16 @@
 
     if (opts.propagate) {
       state.tx.forEach(function (x) { state.tomb[x.id] = t; });
-      if (scope === 'all') state.goals.forEach(function (g) { state.goalTomb[g.id] = t; });
+      if (scope === 'all') {
+        state.goals.forEach(function (g) { state.goalTomb[g.id] = t; });
+        state.members.forEach(function (m) { if (m.id !== 'm1') state.memberTomb[m.id] = t; });
+        assetList().concat(fixedList()).forEach(function (x) { state.itemTomb[x.id] = t; });
+      }
     } else {
       state.tomb = {};
       state.goalTomb = {};
+      state.memberTomb = {};
+      state.itemTomb = {};
     }
 
     state.tx = [];
@@ -627,8 +698,10 @@
       state.activeGoal = null;
       state.members = d.members;
       state.me = state.members[0].id;
+      state.meSet = true;
       state.settings = d.settings;
-      state.settings.updatedAt = t;
+      /* 이 기기만 지울 때는 0 으로 둬서 다음 동기화 때 원격 설정이 다시 내려오게 한다 */
+      state.settings.updatedAt = opts.propagate ? t : 0;
     }
     save();
     return { scope: scope, propagate: !!opts.propagate };
@@ -645,6 +718,7 @@
     goalsSorted: goalsSorted, addGoal: addGoal, removeGoal: removeGoal,
     activeGoal: activeGoal, touchGoal: touchGoal, touchSettings: touchSettings,
     addMember: addMember, removeMember: removeMember, member: member, meMember: meMember,
+    setMe: setMe, needsMe: needsMe,
     sharedPayload: sharedPayload, mergeRemote: mergeRemote, isPristine: isPristine,
     catList: catList, cat: cat, theme: theme, method: method, product: product,
     applyProduct: applyProduct, loanCond: loanCond, defaultLoan: defaultLoan,

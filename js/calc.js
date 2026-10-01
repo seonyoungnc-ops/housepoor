@@ -111,7 +111,7 @@
     var prod = Store.product(L.product);
     var price = Number(goal && goal.price) || 0;
     var i = (Number(L.rate) || 0) / 100 / 12;
-    var n = Math.max(1, Math.round((Number(L.years) || 30) * 12));
+    var n = Math.max(1, Math.round((Number(L.years) || 0) * 12));
     var f;
     if (i > 0) {
       var q = Math.pow(1 + i, n);
