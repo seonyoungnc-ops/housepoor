@@ -16,6 +16,8 @@
     calSel: null,
     statMode: 'month',
     chartMode: 'bar',
+    paceUnit: 'month',
+    paceExtra: 100000,
     sub: { ledger: 'calendar', money: 'assets', goals: 'list' },
     editing: null,
     draft: null,
@@ -140,89 +142,117 @@
       '<div class="shapetag">' + esc(Pixel.shape(g.shape).name) + ' · ' + Pixel.clampFloors(g.shape, g.floors) + '층</div>' +
       '</div>';
 
-    h += '<div class="card">' +
-      '<div class="card-h"><h2>' + esc(g.name || '목표') + ' 모으기</h2>' +
-      '<span class="tag">' + Math.floor(p.ratio * 100) + '%</span></div>' +
-      pbar(p.ratio, p.ratio >= 1 ? '' : (p.ratio < .3 ? 'warn' : '')) +
-      '<div class="gap"></div>';
+    var ymKey = S.monthKey(now);
+    var bg = C.budget(ym, ymEnd, ymKey);
+    var cond = p.loan.cond;
+    var dayOfMonth = now.getDate();
+
+    h += '<div class="hcards">';
+
+    /* ---- 1. 자금 계획 ---- */
+    h += '<div class="card hcard"><div class="card-h"><h2>자금 계획</h2>' +
+      '<span class="tiny muted">' + g.rank + '위 · ' + esc(g.name || '이름 없는 집') + '</span></div>';
 
     if (p.noPrice) {
-      h += '<div class="bigmsg">목표 금액을 아직 안 정했어요<br>' +
-        '<span class="tiny">목표 탭에서 아파트 이름과 금액을 입력하면 계산이 시작됩니다</span></div>' +
-        '<div class="gap"></div><button class="btn p block" data-act="nav:goals">목표 설정하러 가기</button>';
-    } else if (p.eta && p.eta.done) {
-      h += '<div class="bigmsg celebrate">🎉 자기자본 준비 완료!<br>지금 바로 <b>입주 가능</b>해요</div>';
-    } else if (p.eta && p.eta.tooLong) {
-      h += '<div class="bigmsg">지금 속도로는 <b>50년 이상</b> 걸려요<br>' +
-        '<span class="tiny">목표 금액을 낮추거나, 월 저축액을 늘리거나, 대출 조건을 다시 확인해 보세요</span></div>';
-    } else if (p.eta) {
-      h += '<div class="bigmsg">앞으로 <b>' + p.eta.monthsR + '개월</b> 더 모으면 입주 가능!<br>' +
-        '<span class="tiny">= ' + C.fmt(p.eta.weeks) + '주 · ' + C.fmt(p.eta.days) + '일 · 예상 ' + p.eta.date + '</span></div>';
+      h += '<div class="empty">목표 금액을 정하면 계산이 시작돼요</div>' +
+        '<button class="btn p block" data-act="nav:goals">목표 설정하러 가기</button>';
     } else {
-      h += '<div class="bigmsg">아직 저축 속도를 몰라요<br><span class="tiny">내역을 기록하거나 설정에서 월 저축액을 입력해 주세요</span></div>';
+      h += '<div class="kv"><span>목표 매매가</span><b class="num">' + C.kor(p.loan.price) + '</b></div>' +
+        '<div class="kv"><span>+ 부대비용 (' + cond.extraRate + '%)</span><b class="num">' + C.kor(p.loan.extra) + '</b></div>' +
+        '<div class="kv"><span>− 대출 가능액</span><b class="num a sav">' + C.kor(p.loan.amount) + '</b></div>' +
+        '<div class="chips capchips">' +
+        p.loan.caps.map(function (c) {
+          return '<span class="chip ' + (c.active ? 'on sav' : '') + '">' +
+            esc(c.k.replace(/ \d+%$/, '')) + ' ' + short(c.v) + '</span>';
+        }).join('') + '</div>' +
+        '<div class="hint">세 한도 중 가장 적은 금액이 적용돼요</div>' +
+        '<div class="divider"></div>' +
+        '<div class="kv"><span>= 필요 자기자본</span><b class="num">' + C.kor(p.loan.needCash) + '</b></div>' +
+        '<div class="kv"><span>현재 모은 돈</span><b class="num">' + C.kor(p.have) + '</b></div>' +
+        '<div class="kv"><span>남은 금액</span><b class="num hi">' + C.kor(p.short) + '</b></div>' +
+        '<div class="gap"></div>' + pbar(p.ratio, p.ratio >= 1 ? '' : (p.ratio < .3 ? 'warn sm' : 'sm')) +
+        '<div class="divider"></div>' +
+        '<div class="kv"><span>월 상환 예상 · ' + cond.years + '년 · ' + cond.rate + '%</span>' +
+        '<b class="num">' + C.kor(p.loan.monthlyPayment) + '</b></div>';
     }
-
-    h += '<div class="gap"></div><div class="stat">' +
-      '<div><b class="num">' + C.kor(p.have) + '</b><span>모은 돈</span></div>' +
-      '<div><b class="num">' + C.kor(p.loan.needCash) + '</b><span>필요 자기자본</span></div>' +
-      '<div><b class="num">' + C.kor(p.short) + '</b><span>남은 금액</span></div>' +
-      '</div>';
-    h += '<div class="hint">월 저축 속도 ' + C.kor(p.pace.monthly) + ' · ' + esc(p.pace.basis) + '</div>';
     h += '</div>';
 
-    h += '<div class="card"><div class="card-h"><h2>대출·자금 계획</h2>' +
-      '<button class="btn sm" data-act="go:loan">조건 수정</button></div>' +
-      '<div class="row wrap" style="margin-bottom:8px"><span class="tag big">' + esc(p.loan.product.name) + '</span>' +
-      '<span class="tag">금리 ' + p.loan.cond.rate + '%</span>' +
-      '<span class="tag">' + p.loan.cond.years + '년</span></div>';
+    /* ---- 2. 저축 페이스 ---- */
+    var per = { day: p.pace.monthly / 30.4375, week: p.pace.monthly / 4.348, month: p.pace.monthly };
+    h += '<div class="card hcard"><div class="card-h"><h2>저축 페이스</h2>' +
+      '<span class="tiny muted">' + esc(p.pace.basis) + '</span></div>' +
+      '<div class="paceboxes">' +
+      [['day', '하루'], ['week', '일주일'], ['month', '한 달']].map(function (x) {
+        return '<button class="pbox ' + (UI.paceUnit === x[0] ? 'on' : '') + '" data-act="pace:unit" data-u="' + x[0] + '">' +
+          '<span>' + x[1] + '</span><b class="num">' + short(Math.round(per[x[0]])) + '원</b></button>';
+      }).join('') + '</div>';
 
-    h += '<div class="kv"><span>집값</span><b class="num">' + C.kor(p.loan.price) + '</b></div>' +
-      '<div class="kv"><span>취득세 등 부대비용 (' + p.loan.cond.extraRate + '%)</span><b class="num">' + C.kor(p.loan.extra) + '</b></div>' +
-      '<div class="kv"><span>필요 총액</span><b class="num">' + C.kor(p.loan.totalCost) + '</b></div>' +
-      '<div class="kv"><span>받을 수 있는 대출 <span class="tag">' + esc(p.loan.capBy) + '</span></span><b class="num">' + C.kor(p.loan.amount) + '</b></div>' +
-      '<div class="kv"><span>예상 월 상환액</span><b class="num">' + C.won(p.loan.monthlyPayment) + '</b></div>' +
-      '<div class="kv"><span>필요 자기자본</span><b class="num">' + C.kor(p.loan.needCash) + '</b></div>' +
-      '<div class="hint">' + esc(p.loan.product.note) + '</div>' +
-      '</div>';
-
-    h += '<div class="card"><div class="card-h"><h2>이번 달</h2>' +
-      '<span class="tag">' + (now.getMonth() + 1) + '월</span></div>' +
-      '<div class="stat">' +
-      '<div><b class="num a exp">' + C.fmt(mo.expense) + '</b><span>지출</span></div>' +
-      '<div><b class="num a inc">' + C.fmt(mo.income) + '</b><span>수입</span></div>' +
-      '<div><b class="num a sav">' + C.fmt(mo.save) + '</b><span>저축</span></div>' +
-      '</div>';
-    var bg = C.budget(ym, ymEnd, S.monthKey(now));
-    h += '<div class="gap"></div><div class="row" style="justify-content:space-between">' +
-      '<span class="tiny muted">' + (now.getMonth() + 1) + '월 용돈' +
-      (bg.custom ? ' <span class="tag">이 달만</span>' : '') + '</span>' +
-      '<button class="btn sm" data-act="budget:edit">용돈 수정</button></div>';
-    if (bg.limit > 0) {
-      h += '<div class="gap"></div>' +
-        '<div class="row tiny" style="justify-content:space-between">' +
-        '<span>이번 달 용돈 ' + C.fmt(bg.limit) + '원</span>' +
-        '<span class="' + (bg.left < 0 ? 'a exp' : '') + '">' +
-        (bg.left >= 0 ? '남은 용돈 ' + C.fmt(bg.left) + '원' : C.fmt(-bg.left) + '원 초과') + '</span></div>' +
-        pbar(Math.min(1, bg.ratio), bg.ratio > 1 ? 'over sm' : (bg.ratio > .8 ? 'warn sm' : 'sm')) +
-        '<div class="hint">' + Math.round(bg.ratio * 100) + '% 사용 · 현금·신용·체크 모두 용돈에서 차감돼요' +
-        (bg.fixedLeft > 0 ? '<br>남은 고정지출 ' + C.fmt(bg.fixedLeft) + '원을 빼면 <b>' +
-          C.fmt(bg.leftAfterFixed) + '원</b>' : '') + '</div>' +
-        '<div class="row wrap tiny" style="margin-top:6px">' +
-        bg.byMethod.map(function (x) {
-          return '<span class="memchip">' + spr(x.method.spr) + esc(x.method.short) + ' ' + C.fmt(x.amount) + '원</span>';
+    if (!p.noPrice && p.short > 0) {
+      h += '<div class="gap"></div><h3 class="mini-h">조금 더 모으면?</h3>' +
+        '<div class="chips" style="margin-bottom:10px">' +
+        [100000, 300000, 500000, 1000000].map(function (v) {
+          return '<button class="chip ' + (UI.paceExtra === v ? 'on' : '') + '" data-act="pace:extra" data-v="' + v + '">월 +' + short(v) + '</button>';
         }).join('') + '</div>';
-    } else {
-      h += '<div class="hint">용돈을 설정하면 남은 금액과 사용률을 보여드려요</div>';
+
+      var faster = C.etaFor(p.short, p.pace.monthly + UI.paceExtra);
+      h += '<div class="simbox">';
+      if (!faster) {
+        h += '<span class="tiny">저축 속도를 알 수 없어요</span>';
+      } else if (faster.done) {
+        h += '<b>이미 달성했어요!</b>';
+      } else {
+        var saved = (p.eta && !p.eta.tooLong) ? p.eta.monthsR - faster.monthsR : 0;
+        h += '<span class="tiny">매달 ' + short(UI.paceExtra) + '원씩 더 저축하면</span>' +
+          '<b>' + (saved > 0 ? saved + '개월 빨리 · ' : '') +
+          (faster.tooLong ? '50년 이상' : faster.date.slice(0, 4) + '년 ' + (faster.date.slice(5, 7) * 1) + '월 입주') + '</b>';
+      }
+      h += '</div>';
+    } else if (p.short <= 0 && !p.noPrice) {
+      h += '<div class="gap"></div><div class="simbox"><b>🎉 자기자본 준비 완료!</b>' +
+        '<span class="tiny">지금 바로 입주 가능해요</span></div>';
     }
+    h += '</div>';
+
+    /* ---- 3. 이번 달 가계부 ---- */
+    h += '<div class="card hcard"><div class="card-h"><h2>' + (now.getMonth() + 1) + '월 가계부</h2>' +
+      '<span class="tiny muted">' + dayOfMonth + '일째</span></div>' +
+      '<div class="moneyline"><span><i class="sq inc"></i>수입</span><b class="num a inc">+' + C.fmt(mo.income) + '원</b></div>' +
+      '<div class="moneyline"><span><i class="sq exp"></i>지출</span><b class="num a exp">−' + C.fmt(mo.expense) + '원</b></div>' +
+      '<div class="moneyline"><span><i class="sq sav2"></i>저축</span><b class="num">' + C.fmt(mo.save) + '원</b></div>';
+
+    if (bg.limit > 0) {
+      h += '<div class="divider"></div>' +
+        '<div class="row tiny" style="justify-content:space-between">' +
+        '<span>예산 ' + short(bg.limit) + '원' + (bg.custom ? ' <span class="tag">이 달만</span>' : '') + '</span>' +
+        '<span>' + Math.round(bg.ratio * 100) + '% 사용</span></div>' +
+        pbar(Math.min(1, bg.ratio), bg.ratio > 1 ? 'over sm' : (bg.ratio > .8 ? 'warn sm' : 'sm'));
+    } else {
+      h += '<div class="divider"></div><div class="hint">용돈을 정하면 남은 금액을 보여드려요</div>';
+    }
+
+    h += '<div class="gap"></div><div class="row" style="justify-content:space-between;align-items:center">' +
+      '<span class="row" style="gap:6px">' + spr('thumb') +
+      '<span class="tiny">무지출 <b>' + ns.count + '</b> 일' +
+      (streak > 1 ? ' · 연속 ' + streak + '일' : '') + '</span></span>' +
+      (bg.limit > 0
+        ? '<span class="tiny ' + (bg.left < 0 ? 'a exp' : 'hi') + '">' +
+          (bg.left >= 0 ? short(bg.left) + '원 남음' : short(-bg.left) + '원 초과') + '</span>'
+        : '') +
+      '</div>';
+
+    if (bg.fixedLeft > 0) {
+      h += '<div class="hint">남은 고정지출 ' + short(bg.fixedLeft) + '원을 빼면 ' +
+        short(bg.leftAfterFixed) + '원</div>';
+    }
+
     var mem = C.byMember(ym, ymEnd);
     if (mem.length > 1) {
       h += '<div class="gap"></div><div class="row wrap tiny">' + mem.map(function (x) {
-        return '<span class="memchip">' + dot(x.member) + esc(x.member.name) + ' ' + C.fmt(x.amount) + '원</span>';
+        return '<span class="memchip">' + dot(x.member) + esc(x.member.name) + ' ' + short(x.amount) + '원</span>';
       }).join('') + '</div>';
     }
-    h += '<div class="gap"></div><div class="row" style="gap:10px">' +
-      spr('thumb') + '<div class="tiny grow">이번 달 무지출 <b>' + ns.count + '일</b> / ' + ns.total + '일' +
-      (streak > 1 ? ' · 연속 <b>' + streak + '일</b> 기록 중!' : '') + '</div></div>';
+    h += '</div>';
+
     h += '</div>';
 
     var recent = S.state.tx.slice(0, 5);
@@ -300,8 +330,15 @@
   }
 
   function short(n) {
-    if (n >= 100000000) return (n / 100000000).toFixed(1).replace('.0', '') + '억';
-    if (n >= 10000) return Math.round(n / 10000) + '만';
+    n = Math.round(Number(n) || 0);
+    if (n >= 100000000) {
+      var eok = n / 100000000;
+      return (eok < 10 ? eok.toFixed(1).replace('.0', '') : Math.round(eok)) + '억';
+    }
+    if (n >= 10000) {
+      var man = n / 10000;
+      return (man < 10 ? man.toFixed(1).replace('.0', '') : Math.round(man)) + '만';
+    }
     if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + '천';
     return String(n);
   }

@@ -134,6 +134,7 @@
     var best = caps[0];
     caps.forEach(function (c) { if (c.v < best.v) best = c; });
     var amount = Math.max(0, best.v);
+    caps.forEach(function (c) { c.active = (c === best); c.v = Math.round(c.v); });
 
     var totalCost = price * (1 + (Number(L.extraRate) || 0) / 100);
     var needCash = Math.max(0, totalCost - amount);
@@ -159,7 +160,26 @@
       totalCost: Math.round(totalCost),
       needCash: Math.round(needCash),
       capBy: best.k,
+      caps: caps,
+      factor: f,
       warnings: warnings
+    };
+  }
+
+  /* 남은 금액과 월 저축액으로 달성 시점을 계산 */
+  function etaFor(short, monthly) {
+    if (short <= 0) return { done: true };
+    if (!(monthly > 0)) return null;
+    var months = short / monthly;
+    if (months > 600) return { done: false, tooLong: true, monthsR: Math.ceil(months) };
+    var days = Math.ceil(months * MONTH_DAYS);
+    return {
+      done: false,
+      months: months,
+      monthsR: Math.ceil(months),
+      weeks: Math.ceil(days / 7),
+      days: days,
+      date: iso(addDays(new Date(), days))
     };
   }
 
@@ -174,26 +194,7 @@
     var short = Math.max(0, L.needCash - h);
     var p = L.needCash > 0 ? Math.min(1, h / L.needCash) : 1;
     var pc = pace();
-    var e = null;
-    if (short <= 0) {
-      e = { done: true };
-    } else if (pc.monthly > 0) {
-      var months = short / pc.monthly;
-      /* 50년을 넘으면 날짜 예측이 의미 없다 */
-      if (months > 600) {
-        e = { done: false, tooLong: true, monthsR: Math.ceil(months) };
-      } else {
-        var days = Math.ceil(months * MONTH_DAYS);
-        e = {
-          done: false,
-          months: months,
-          monthsR: Math.ceil(months),
-          weeks: Math.ceil(days / 7),
-          days: days,
-          date: iso(addDays(new Date(), days))
-        };
-      }
-    }
+    var e = etaFor(short, pc.monthly);
     return {
       goal: goal, loan: L, have: h, short: short,
       ratio: p, pace: pc, eta: e
@@ -360,7 +361,7 @@
     DAY: DAY, MONTH_DAYS: MONTH_DAYS,
     fmt: fmt, won: won, kor: kor,
     iso: iso, parseDate: parseDate, addDays: addDays, diffDays: diffDays, weekStart: weekStart,
-    sums: sums, allSums: allSums, have: have, pace: pace,
+    sums: sums, allSums: allSums, have: have, pace: pace, etaFor: etaFor,
     loan: loan, progress: progress,
     monthMap: monthMap, byDate: byDate, byCategory: byCategory, byMember: byMember,
     byMethod: byMethod, budget: budget,

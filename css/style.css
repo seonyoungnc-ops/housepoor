@@ -392,3 +392,40 @@ html[data-theme="night"] .cal .c.today .e,html[data-theme="night"] .cal .c.today
 .ascard.add{background:var(--panel);color:var(--muted);font-size:20px;font-weight:700;justify-content:center;border-style:dashed}
 .ascard.add span{font-size:10px;font-weight:400}
 @media (max-width:340px){.ascards{grid-template-columns:repeat(2,1fr)}}
+
+/* ---------- v6 : 홈 3카드 ---------- */
+.hcards{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:860px){.hcards{grid-template-columns:repeat(3,1fr);align-items:start}}
+.hcard{margin-bottom:0}
+.hcard .card-h{align-items:baseline}
+.hcard .kv{font-size:12px}
+.hcard .kv b{font-size:13px}
+.num.hi{color:var(--orange-d);font-weight:700}
+.mini-h{margin:0 0 8px;font-size:12px}
+
+.capchips{margin:8px 0 4px;gap:5px}
+.capchips .chip{font-size:10px;padding:3px 7px;cursor:default;background:var(--panel-2)}
+.capchips .chip.on.sav{background:var(--blue);color:var(--on-accent);box-shadow:none;transform:none;font-weight:700}
+
+.paceboxes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pbox{
+  background:var(--panel-2);border:var(--bw) solid var(--line);padding:8px 4px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:3px;color:inherit;
+}
+.pbox span{font-size:10px;color:var(--muted)}
+.pbox b{font-size:14px}
+.pbox.on{background:var(--yellow);color:var(--on-accent);box-shadow:var(--shadow-sm)}
+.pbox.on span{color:var(--on-accent);opacity:.7}
+
+.simbox{
+  background:var(--panel-2);border:var(--bw) solid var(--line);padding:10px 12px;
+  display:flex;flex-direction:column;gap:3px;
+}
+.simbox b{font-size:14px;color:var(--orange-d);line-height:1.5}
+
+.moneyline{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px}
+.moneyline span{display:flex;align-items:center;gap:7px}
+.sq{width:10px;height:10px;border:2px solid var(--line);display:inline-block;flex:none}
+.sq.inc{background:var(--blue)}
+.sq.exp{background:var(--red)}
+.sq.sav2{background:var(--yellow)}

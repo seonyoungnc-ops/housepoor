@@ -312,6 +312,8 @@
       /* ---- 통계 ---- */
       case 'stat:mode': UI.statMode = t.dataset.m; UI.render(); return;
       case 'chart:mode': UI.chartMode = t.dataset.m; UI.render(); return;
+      case 'pace:unit': UI.paceUnit = t.dataset.u; UI.render(); return;
+      case 'pace:extra': UI.paceExtra = Number(t.dataset.v) || 0; UI.render(); return;
 
       /* ---- 대출 조건 바로가기 ---- */
       case 'go:loan':
