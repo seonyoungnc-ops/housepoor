@@ -346,9 +346,19 @@
 
   if (Sync.configured() && S.state.sync.auto) setTimeout(function () { Sync.run(true); }, 800);
 
+  /* 새 버전이 배포되면 서비스워커 교체 후 한 번만 자동 새로고침 */
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    var reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').catch(function () { });
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        reg.update();
+        setInterval(function () { reg.update(); }, 60 * 60 * 1000);
+      }).catch(function () { });
     });
   }
 })();
