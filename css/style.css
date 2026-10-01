@@ -89,7 +89,7 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 }
 html[data-theme="night"] .topbar{background:var(--purple);color:var(--on-accent)}
 .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.5px}
-.brand canvas{width:24px;height:24px}
+.brand canvas,.brand .brandico{width:24px;height:24px;display:block;flex:none}
 .icon-btn{
   background:var(--panel);border:var(--bw) solid var(--line);box-shadow:var(--shadow-sm);
   width:34px;height:34px;cursor:pointer;line-height:1;font-size:15px;flex:none;color:var(--ink);
@@ -453,3 +453,41 @@ textarea.masked{-webkit-text-security:disc;text-security:disc;color:var(--muted)
   .goalgrid.cols3 .chip{font-size:10px;padding:4px 7px}
   .goalgrid.cols3 .swatches button{width:22px;height:22px}
 }
+
+/* ---------- v9 : 기간 보기 ---------- */
+.periodbar{display:flex;gap:6px;margin-bottom:10px}
+.periodbar button{
+  flex:1;background:var(--panel);border:var(--bw) solid var(--line);
+  padding:7px 4px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);
+}
+.periodbar button.on{background:var(--purple);color:var(--on-accent);box-shadow:var(--shadow-sm)}
+
+.weekstrip{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:12px}
+.weekstrip .wc{
+  border:2px solid var(--line);background:var(--panel-2);padding:6px 2px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;min-height:66px;
+}
+.weekstrip .wc.today{background:var(--yellow);color:var(--on-accent);border-width:var(--bw)}
+.weekstrip .wc .dw{font-size:9px;color:var(--muted)}
+.weekstrip .wc.today .dw{color:var(--on-accent);opacity:.75}
+.weekstrip .wc .dd{font-size:13px;font-weight:700}
+.weekstrip .wc .ex{font-size:9px;font-weight:700;color:var(--red-d)}
+.weekstrip .wc canvas{width:16px;height:16px}
+
+.daygroup{margin-bottom:4px}
+.daygroup .dh{
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  padding:7px 0 5px;border-bottom:var(--bw) solid var(--line);margin-bottom:2px;
+}
+.daygroup .dh b{font-size:12px}
+.daygroup .dh span{font-size:11px;color:var(--muted)}
+
+.monthrow{
+  display:flex;align-items:center;gap:10px;padding:9px 0;cursor:pointer;
+  border-bottom:2px dotted rgba(128,120,150,.4);
+}
+.monthrow:last-child{border-bottom:0}
+.monthrow .mn{width:48px;font-weight:700;font-size:13px;flex:none}
+.monthrow .bar{flex:1;height:14px;border:2px solid var(--line);background:var(--panel-2);min-width:40px}
+.monthrow .bar i{display:block;height:100%;background:var(--red)}
+.monthrow .mv{width:84px;text-align:right;font-size:12px;font-weight:700;flex:none}

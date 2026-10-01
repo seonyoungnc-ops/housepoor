@@ -369,13 +369,20 @@
         return;
       }
 
-      /* ---- 달력 ---- */
-      case 'cal:prev': UI.cal = new Date(UI.cal.getFullYear(), UI.cal.getMonth() - 1, 1); UI.render(); return;
-      case 'cal:next': UI.cal = new Date(UI.cal.getFullYear(), UI.cal.getMonth() + 1, 1); UI.render(); return;
-      case 'cal:today': UI.cal = new Date(); UI.calSel = S.todayISO(); UI.render(); return;
+      /* ---- 가계부 기간 ---- */
+      case 'per:mode': UI.period = t.dataset.m; UI.render({ top: true }); return;
+      case 'per:prev': UI.shiftCursor(-1); UI.render({ top: true }); return;
+      case 'per:next': UI.shiftCursor(1); UI.render({ top: true }); return;
+      case 'per:today': UI.cursor = new Date(); UI.render({ top: true }); return;
+      case 'per:month':
+        UI.cursor = C.parseDate(t.dataset.m);
+        UI.period = 'month';
+        UI.render({ top: true });
+        return;
       case 'cal:day':
-        UI.calSel = UI.calSel === t.dataset.d ? null : t.dataset.d;
-        UI.render();
+        UI.cursor = C.parseDate(t.dataset.d);
+        UI.period = 'day';
+        UI.render({ top: true });
         return;
 
       /* ---- 통계 ---- */
@@ -430,7 +437,7 @@
         if (UI.editing) { S.updateTx(UI.editing, d); UI.toast('수정했어요'); }
         else { S.addTx(d); UI.toast(UI.TYPE_META[d.type].name + ' ' + C.fmt(d.amount) + '원 기록 완료!'); }
         var after = C.progress(S.activeGoal()).ratio;
-        if (UI.view === 'calendar') UI.calSel = d.date;
+        if (UI.view === 'ledger') { UI.cursor = C.parseDate(d.date); }
         UI.closeSheet();
         UI.render();
         Sync.schedule();
@@ -847,11 +854,10 @@
   /* ---------- 부트 ---------- */
   S.load();
   applyTheme();
-  UI.calSel = S.todayISO();
   UI.render({ top: true });
 
   document.getElementById('fab').addEventListener('click', function () {
-    UI.openTxSheet(null, UI.view === 'calendar' && UI.calSel ? UI.calSel : S.todayISO());
+    UI.openTxSheet(null, S.todayISO());
   });
 
   document.getElementById('themeBtn').addEventListener('click', function () {

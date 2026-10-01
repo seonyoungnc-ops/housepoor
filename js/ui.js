@@ -14,6 +14,8 @@
     view: 'home',
     cal: new Date(),
     calSel: null,
+    period: 'month',
+    cursor: new Date(),
     statMode: 'month',
     chartMode: 'bar',
     edits: {},
@@ -288,64 +290,160 @@
     };
   }
 
-  /* ---------- 달력 ---------- */
-  function viewCalendar() {
-    var d = UI.cal, y = d.getFullYear(), m = d.getMonth();
-    var map = C.monthMap(y, m);
-    var first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
-    var startPad = first.getDay(), days = last.getDate();
+  /* ---------- 가계부 : 일 / 주 / 월 / 년 ---------- */
+  var PERIODS = [['day', '일'], ['week', '주'], ['month', '월'], ['year', '년']];
+  var WD = ['일', '월', '화', '수', '목', '금', '토'];
+
+  function periodRange() {
+    var d = UI.cursor instanceof Date ? UI.cursor : new Date();
+    var y = d.getFullYear(), m = d.getMonth();
+    if (UI.period === 'day') {
+      var k = C.iso(d);
+      return { from: k, to: k, label: k.replace(/-/g, '.') + ' (' + WD[d.getDay()] + ')' };
+    }
+    if (UI.period === 'week') {
+      var a = C.weekStart(d), b = C.addDays(a, 6);
+      return {
+        from: C.iso(a), to: C.iso(b),
+        label: (a.getMonth() + 1) + '.' + a.getDate() + ' ~ ' + (b.getMonth() + 1) + '.' + b.getDate()
+      };
+    }
+    if (UI.period === 'year') {
+      return { from: y + '-01-01', to: y + '-12-31', label: y + '년' };
+    }
+    return {
+      from: C.iso(new Date(y, m, 1)), to: C.iso(new Date(y, m + 1, 0)),
+      label: y + '년 ' + (m + 1) + '월'
+    };
+  }
+
+  function shiftCursor(dir) {
+    var d = new Date(UI.cursor.getTime());
+    if (UI.period === 'day') d.setDate(d.getDate() + dir);
+    else if (UI.period === 'week') d.setDate(d.getDate() + dir * 7);
+    else if (UI.period === 'year') d.setFullYear(d.getFullYear() + dir);
+    else d.setMonth(d.getMonth() + dir);
+    UI.cursor = d;
+  }
+
+  /* 날짜별로 묶은 내역 목록 */
+  function groupedTx(from, to) {
+    var list = S.state.tx.filter(function (t) { return t.date >= from && t.date <= to; });
+    if (!list.length) return '';
+    var byDate = {};
+    list.forEach(function (t) { (byDate[t.date] = byDate[t.date] || []).push(t); });
     var todayI = S.todayISO();
-    var tot = C.sums(C.iso(first), C.iso(last));
-    var ns = C.noSpendDays(y, m);
+    return Object.keys(byDate).sort().reverse().map(function (d) {
+      var items = byDate[d];
+      var sm = C.sums(d, d);
+      var dt = C.parseDate(d);
+      return '<div class="daygroup"><div class="dh">' +
+        '<b>' + (dt.getMonth() + 1) + '.' + dt.getDate() + ' (' + WD[dt.getDay()] + ')' +
+        (d === todayI ? ' <span class="tag">오늘</span>' : '') + '</b>' +
+        '<span>' + (sm.expense ? '<span class="a exp">-' + C.fmt(sm.expense) + '</span>' : '') +
+        (sm.income ? ' <span class="a inc">+' + C.fmt(sm.income) + '</span>' : '') +
+        (sm.save ? ' <span class="a sav">저축 ' + C.fmt(sm.save) + '</span>' : '') +
+        '</span></div>' +
+        items.map(txRow).join('') + '</div>';
+    }).join('');
+  }
 
-    var h = '<div class="calnav">' +
-      '<button class="btn sm" data-act="cal:prev">◀</button>' +
-      '<div class="m">' + y + '년 ' + (m + 1) + '월</div>' +
-      '<div class="row"><button class="btn sm" data-act="cal:today">오늘</button>' +
-      '<button class="btn sm" data-act="cal:next">▶</button></div></div>';
+  function viewCalendar() {
+    if (!(UI.cursor instanceof Date)) UI.cursor = new Date();
+    var r = periodRange();
+    var tot = C.sums(r.from, r.to);
+    var todayI = S.todayISO();
 
+    var h = '<div class="periodbar">' + PERIODS.map(function (x) {
+      return '<button class="' + (UI.period === x[0] ? 'on' : '') +
+        '" data-act="per:mode" data-m="' + x[0] + '">' + x[1] + '</button>';
+    }).join('') + '</div>';
+
+    h += '<div class="calnav">' +
+      '<button class="btn sm" data-act="per:prev">◀</button>' +
+      '<div class="m">' + esc(r.label) + '</div>' +
+      '<div class="row"><button class="btn sm" data-act="per:today">오늘</button>' +
+      '<button class="btn sm" data-act="per:next">▶</button></div></div>';
+
+    /* 합계 */
     h += '<div class="card"><div class="stat">' +
       '<div><b class="num a exp">' + C.fmt(tot.expense) + '</b><span>지출</span></div>' +
       '<div><b class="num a inc">' + C.fmt(tot.income) + '</b><span>수입</span></div>' +
-      '<div><b class="num a sav">' + C.fmt(tot.save) + '</b><span>저축</span></div></div>' +
-      '<div class="hint">무지출 ' + ns.count + '일 · 합계 ' + tot.count + '건</div></div>';
-
-    h += '<div class="card">';
-    h += '<div class="calhead">' + ['일', '월', '화', '수', '목', '금', '토']
-      .map(function (w) { return '<div>' + w + '</div>'; }).join('') + '</div>';
-    h += '<div class="cal">';
-    for (var i = 0; i < startPad; i++) h += '<div class="c mute"></div>';
-    for (var dd = 1; dd <= days; dd++) {
-      var key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
-      var e = map[key];
-      var cls = 'c' + (key === todayI ? ' today' : '') + (key === UI.calSel ? ' sel' : '');
-      h += '<div class="' + cls + '" data-act="cal:day" data-d="' + key + '">';
-      h += '<span class="d">' + dd + '</span>';
-      if (e && e.save > 0) h += '<span class="sv"></span>';
-      if (e && e.expense > 0) h += '<span class="e">-' + short(e.expense) + '</span>';
-      if (e && e.income > 0) h += '<span class="i">+' + short(e.income) + '</span>';
-      if ((!e || e.expense === 0) && key <= todayI) h += spr('thumb');
-      h += '</div>';
+      '<div><b class="num a sav">' + C.fmt(tot.save) + '</b><span>저축</span></div></div>';
+    if (UI.period === 'month') {
+      var ns = C.noSpendDays(UI.cursor.getFullYear(), UI.cursor.getMonth());
+      h += '<div class="hint">무지출 ' + ns.count + '일 · 합계 ' + tot.count + '건</div>';
+    } else {
+      h += '<div class="hint">합계 ' + tot.count + '건</div>';
     }
-    h += '</div></div>';
+    h += '</div>';
 
-    var sel = UI.calSel;
-    if (sel) {
-      var list = C.byDate(sel);
-      var s = C.sums(sel, sel);
-      h += '<div class="card"><div class="card-h"><h2>' + sel.replace(/-/g, '.') + '</h2>' +
-        '<button class="btn sm p" data-act="tx:new" data-d="' + sel + '">+ 추가</button></div>';
-      if (!list.length) {
-        h += '<div class="empty">' + (sel <= todayI ? '무지출 데이! 👍' : '예정된 내역이 없어요') + '</div>';
-      } else {
-        h += '<div class="row tiny" style="justify-content:space-between;margin-bottom:6px">' +
-          '<span class="a exp">지출 ' + C.fmt(s.expense) + '</span>' +
-          '<span class="a inc">수입 ' + C.fmt(s.income) + '</span>' +
-          '<span class="a sav">저축 ' + C.fmt(s.save) + '</span></div>';
-        h += list.map(txRow).join('');
+    /* 주 : 7일 스트립 */
+    if (UI.period === 'week') {
+      var ws = C.weekStart(UI.cursor);
+      h += '<div class="weekstrip">';
+      for (var i = 0; i < 7; i++) {
+        var dd = C.addDays(ws, i), k = C.iso(dd);
+        var sm = C.sums(k, k);
+        h += '<div class="wc' + (k === todayI ? ' today' : '') + '" data-act="cal:day" data-d="' + k + '">' +
+          '<span class="dw">' + WD[i] + '</span>' +
+          '<span class="dd">' + dd.getDate() + '</span>' +
+          (sm.expense ? '<span class="ex">-' + short(sm.expense) + '</span>' : '') +
+          (!sm.expense && k <= todayI ? spr('thumb') : '') +
+          '</div>';
       }
       h += '</div>';
     }
+
+    /* 월 : 달력 그리드 */
+    if (UI.period === 'month') {
+      var y = UI.cursor.getFullYear(), m = UI.cursor.getMonth();
+      var map = C.monthMap(y, m);
+      var first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+      h += '<div class="card">';
+      h += '<div class="calhead">' + WD.map(function (w) { return '<div>' + w + '</div>'; }).join('') + '</div>';
+      h += '<div class="cal">';
+      for (var j = 0; j < first.getDay(); j++) h += '<div class="c mute"></div>';
+      for (var d2 = 1; d2 <= last.getDate(); d2++) {
+        var key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d2).padStart(2, '0');
+        var e = map[key];
+        h += '<div class="c' + (key === todayI ? ' today' : '') + '" data-act="cal:day" data-d="' + key + '">' +
+          '<span class="d">' + d2 + '</span>' +
+          (e && e.save > 0 ? '<span class="sv"></span>' : '') +
+          (e && e.expense > 0 ? '<span class="e">-' + short(e.expense) + '</span>' : '') +
+          (e && e.income > 0 ? '<span class="i">+' + short(e.income) + '</span>' : '') +
+          ((!e || e.expense === 0) && key <= todayI ? spr('thumb') : '') +
+          '</div>';
+      }
+      h += '</div></div>';
+    }
+
+    /* 년 : 월별 요약 */
+    if (UI.period === 'year') {
+      var months = C.yearMonths(UI.cursor.getFullYear());
+      var mx = Math.max(1, Math.max.apply(null, months.map(function (x) { return x.s.expense; })));
+      h += '<div class="card"><div class="card-h"><h2>월별 지출</h2></div>' +
+        months.map(function (x) {
+          return '<div class="monthrow" data-act="per:month" data-m="' + x.key + '">' +
+            '<span class="mn">' + x.month + '월</span>' +
+            '<span class="bar"><i style="width:' + Math.round(x.s.expense / mx * 100) + '%"></i></span>' +
+            '<span class="mv a exp">' + (x.s.expense ? C.fmt(x.s.expense) : '-') + '</span></div>';
+        }).join('') +
+        '<div class="hint">월을 누르면 그 달로 이동합니다</div></div>';
+    }
+
+    /* 내역 목록 (년 제외) */
+    if (UI.period !== 'year') {
+      var listHtml = groupedTx(r.from, r.to);
+      h += '<div class="card"><div class="card-h"><h2>내역</h2>' +
+        '<button class="btn sm p" data-act="tx:new" data-d="' +
+        (UI.period === 'day' ? r.from : (todayI >= r.from && todayI <= r.to ? todayI : r.from)) +
+        '">+ 추가</button></div>';
+      h += listHtml || '<div class="empty">' +
+        (UI.period === 'day' && r.from <= todayI ? '무지출 데이! 👍' : '기록된 내역이 없어요') + '</div>';
+      h += '</div>';
+    }
+
     return { html: h };
   }
 
@@ -1065,7 +1163,7 @@
   }
 
   global.UI = Object.assign(UI, {
-    render: render, isTyping: isTyping, flushPending: flushPending,
+    render: render, isTyping: isTyping, flushPending: flushPending, shiftCursor: shiftCursor,
     pend: pend, dirty: dirty, renderSheet: renderSheet, openTxSheet: openTxSheet,
     readSheet: readSheet, closeSheet: closeSheet, toast: toast,
     repaintBuildings: repaintBuildings, paintBuilding: paintBuilding,

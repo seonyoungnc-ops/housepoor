@@ -237,6 +237,16 @@
     }).filter(function (x) { return Store.state.members.length > 1; });
   }
 
+  /* 해당 연도의 월별 합계 */
+  function yearMonths(year) {
+    var out = [];
+    for (var m = 0; m < 12; m++) {
+      var a = new Date(year, m, 1), b = new Date(year, m + 1, 0);
+      out.push({ month: m + 1, key: iso(a), s: sums(iso(a), iso(b)) });
+    }
+    return out;
+  }
+
   /* 결제수단별 지출 합계 (현금·신용·체크 모두 용돈에서 차감) */
   function byMethod(from, to) {
     var tx = Store.state.tx, acc = {};
@@ -364,7 +374,7 @@
     sums: sums, allSums: allSums, have: have, pace: pace, etaFor: etaFor,
     loan: loan, progress: progress,
     monthMap: monthMap, byDate: byDate, byCategory: byCategory, byMember: byMember,
-    byMethod: byMethod, budget: budget,
+    byMethod: byMethod, budget: budget, yearMonths: yearMonths,
     noSpendDays: noSpendDays, noSpendStreak: noSpendStreak, series: series
   };
 })(window);
