@@ -783,10 +783,13 @@
       '<button class="btn sm" data-act="tok:show">' + (sy.show ? '가리기' : '보기') + '</button>' +
       '<button class="btn sm" data-act="tok:clear">지우기</button>' +
       '</div>' +
-      '<div class="hint">저장된 토큰: ' + (sy.token
-        ? esc(String(sy.token).slice(0, 11)) + '… <b>' + String(sy.token).length + '자</b>' +
-          (String(sy.token).length < 40 ? ' <span class="a exp">← 너무 짧아요. 전체가 붙여넣어지지 않았어요</span>' : ' ✓')
-        : '없음') + '</div></div>' +
+      '<div class="hint">저장된 토큰: ' + (function () {
+        if (!sy.token) return '없음';
+        var t = String(sy.token);
+        var bad = Sync.tokenIssue && Sync.tokenIssue();
+        return esc(t.slice(0, 11)) + '… <b>' + t.length + '자</b>' +
+          (bad ? ' <span class="a exp">← ' + esc(bad) + '</span>' : ' ✓');
+      })() + '</div></div>' +
       '<div class="row wrap">' +
       '<button class="btn b" data-act="sync:now">지금 동기화</button>' +
       '<button class="btn" data-act="sync:test">연결 확인</button>' +

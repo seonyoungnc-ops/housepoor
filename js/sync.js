@@ -48,12 +48,27 @@
     return out;
   }
 
+  /* 유형별 표준 길이 — 다르면 복사가 잘린 것이다 */
+  var TOKEN_LEN = { 'github_pat_': 93, 'ghp_': 40, 'gho_': 40, 'ghs_': 40, 'ghu_': 40 };
+
+  function tokenPrefix(t) {
+    var keys = Object.keys(TOKEN_LEN);
+    for (var i = 0; i < keys.length; i++) {
+      if (t.indexOf(keys[i]) === 0) return keys[i];
+    }
+    return null;
+  }
+
   function tokenIssue() {
     var t = cleanToken(cfg().token);
     if (!t) return '토큰이 비어 있어요';
-    if (t.length < 20) return '토큰이 너무 짧아요 (' + t.length + '자). 전체가 복사됐는지 확인해 주세요';
-    if (!/^(github_pat_|ghp_|gho_|ghs_|ghu_)/.test(t)) {
-      return '토큰 형식이 아니에요. github_pat_ 으로 시작하는 값을 넣어주세요';
+    var pre = tokenPrefix(t);
+    if (!pre) return '토큰 형식이 아니에요. github_pat_ 으로 시작하는 값을 넣어주세요';
+    var want = TOKEN_LEN[pre];
+    if (t.length !== want) {
+      return '토큰이 ' + t.length + '자인데 ' + want + '자여야 해요. ' +
+        (t.length < want ? (want - t.length) + '자가 빠졌어요 — ' : '') +
+        'GitHub에서 복사 아이콘으로 전체를 다시 복사해 주세요';
     }
     return null;
   }
@@ -277,24 +292,34 @@
 
     function probe(label, url, opt) {
       return fetch(url, opt).then(function (r) {
-        steps.push([label, '✓ HTTP ' + r.status]);
+        var ok = r.status >= 200 && r.status < 300;
+        var note = ok ? '' : ' — ' + statusHint(r.status);
+        steps.push([label, (ok ? '✓' : '✗') + ' HTTP ' + r.status + note]);
+        return ok;
       }).catch(function (e) {
-        steps.push([label, '✗ ' + (e && e.name) + ': ' + (e && e.message)]);
+        steps.push([label, '✗ 요청 실패 (' + (e && e.name) + ': ' + (e && e.message) + ')']);
+        return false;
       });
     }
 
-    return probe('1. 인증 없이 호출', API + '/rate_limit', { cache: 'no-store' })
+    function statusHint(code) {
+      if (code === 401) return '토큰이 유효하지 않음';
+      if (code === 403) return '권한 부족 또는 요청 제한';
+      if (code === 404) return '토큰이 이 저장소를 볼 수 없음';
+      return '오류';
+    }
+
+    return probe('1. GitHub 도달', API + '/rate_limit', { cache: 'no-store' })
       .then(function () {
-        /* 커스텀 헤더가 붙으면 브라우저가 사전 요청(OPTIONS)을 보낸다 */
-        return probe('2. 사전요청(CORS)', API + '/rate_limit',
-          { cache: 'no-store', headers: { 'Accept': 'application/vnd.github+json', 'X-Probe': '1' } });
+        /* 여기서 HTTP 응답이 오면 CORS·사전요청은 통과한 것이다 */
+        return probe('2. 토큰 확인', API + '/user', { cache: 'no-store', headers: headers() });
       })
       .then(function () {
-        return probe('3. 토큰으로 호출', API + '/user', { cache: 'no-store', headers: headers() });
-      })
-      .then(function () {
-        if (!repo) return;
-        return probe('4. 저장소 접근', API + '/repos/' + repo, { cache: 'no-store', headers: headers() });
+        if (!repo) {
+          steps.push(['3. 저장소 접근', '- 저장소를 먼저 입력하세요']);
+          return;
+        }
+        return probe('3. 저장소 접근', API + '/repos/' + repo, { cache: 'no-store', headers: headers() });
       })
       .then(function () { return steps; });
   }
@@ -319,7 +344,7 @@
 
   global.Sync = {
     configured: configured, pull: pull, push: push,
-    run: run, test: test, diagnose: diagnose,
+    run: run, test: test, diagnose: diagnose, tokenIssue: tokenIssue,
     cleanToken: cleanToken, tokenStripped: tokenStripped,
     schedule: schedule, setBadge: setBadge
   };
