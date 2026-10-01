@@ -1,0 +1,50 @@
+{
+  "name": "하우스푸어",
+  "short_name": "하우스푸어",
+  "description": "픽셀 도트 감성으로 내 집 마련까지 함께하는 가계부",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fcfaf6",
+  "theme_color": "#ffe9a3",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "내역 추가",
+      "short_name": "추가",
+      "url": "./index.html#add"
+    },
+    {
+      "name": "달력",
+      "short_name": "달력",
+      "url": "./index.html#calendar"
+    }
+  ]
+}
