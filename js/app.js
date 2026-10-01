@@ -346,16 +346,9 @@
   function freshReload() {
     UI.toast('앱을 새로 받는 중...');
     var done = function () {
-      var u = location.origin + location.pathname + '?fresh=' + Date.now();
-      location.replace(u);
+      location.replace(location.origin + location.pathname + '?fresh=' + Date.now());
     };
-    if (!('serviceWorker' in navigator)) return done();
-    navigator.serviceWorker.getRegistrations()
-      .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
-      .then(function () { return caches.keys(); })
-      .then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })
-      .then(done)
-      .catch(done);
+    clearWorkers().then(done, done);
   }
 
   /* ---------- 백업 ---------- */
@@ -408,14 +401,6 @@
   });
 
   /* ---------- 부트 ---------- */
-  /* ?fresh= 로 들어오면 서비스워커·캐시를 한 번 비운다 */
-  if (/[?&]fresh=/.test(location.search) && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function (rs) {
-      rs.forEach(function (r) { r.unregister(); });
-    });
-    caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
-  }
-
   S.load();
   applyTheme();
   UI.calSel = S.todayISO();
@@ -467,19 +452,61 @@
 
   if (Sync.configured() && S.state.sync.auto) setTimeout(function () { Sync.run(true); }, 800);
 
-  /* 새 버전이 배포되면 서비스워커 교체 후 한 번만 자동 새로고침 */
-  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  /* ---------- 서비스워커 ----------
+     ?fresh= 로 들어오면 먼저 해제·캐시 삭제를 "끝낸 뒤" 재등록한다.
+     (동시에 돌리면 사라진 등록에 update() 를 호출해 TypeError 가 난다) */
+  function clearWorkers() {
+    var jobs = [];
+    if ('serviceWorker' in navigator) {
+      jobs.push(navigator.serviceWorker.getRegistrations()
+        .then(function (rs) {
+          return Promise.all(rs.map(function (r) { return r.unregister(); }));
+        }).catch(function () { }));
+    }
+    if (window.caches) {
+      jobs.push(caches.keys()
+        .then(function (ks) {
+          return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+        }).catch(function () { }));
+    }
+    return Promise.all(jobs).catch(function () { });
+  }
+
+  function safeUpdate(reg) {
+    try {
+      if (!reg || (!reg.installing && !reg.waiting && !reg.active)) return;
+      var p = reg.update();
+      if (p && p.catch) p.catch(function () { });
+    } catch (e) { /* 이미 해제된 등록 — 무시 */ }
+  }
+
+  function registerSW() {
+    if (!('serviceWorker' in navigator) || location.protocol.indexOf('http') !== 0) return;
+
+    /* 설치 직후의 controllerchange 로 새로고침 루프가 돌지 않도록, 
+       원래 컨트롤러가 있던 경우(=업데이트)에만 한 번 새로고침한다 */
+    var hadController = !!navigator.serviceWorker.controller;
     var reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (reloading) return;
+      if (!hadController || reloading) return;
       reloading = true;
       location.reload();
     });
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').then(function (reg) {
-        reg.update();
-        setInterval(function () { reg.update(); }, 60 * 60 * 1000);
-      }).catch(function () { });
+
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      safeUpdate(reg);
+      setInterval(function () { safeUpdate(reg); }, 60 * 60 * 1000);
+    }).catch(function () { });
+  }
+
+  var fresh = /[?&]fresh=/.test(location.search);
+  if (fresh) {
+    clearWorkers().then(function () {
+      /* 주소에서 fresh 파라미터를 치워 다음 새로고침 때 반복되지 않게 */
+      try { history.replaceState(null, '', location.pathname); } catch (e) { }
+      registerSW();
     });
+  } else {
+    window.addEventListener('load', registerSW);
   }
 })();
