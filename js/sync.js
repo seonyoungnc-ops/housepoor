@@ -179,6 +179,13 @@
   function cycle(tries) {
     return pull().then(function (r) {
       var report = { tx: 0, goals: 0, members: 0, settings: false };
+      /* 다른 기기가 더 새 버전 앱으로 저장했다 → 이 기기는 옛 코드다.
+         옛 코드로 올리면 새 기능의 데이터(삭제 기록 등)를 망가뜨리므로 올리지 않고 새로 받는다. */
+      if (r.data && Number(r.data.build) > Store.BUILD) {
+        var e = new Error('새 버전이 있어요. 앱을 새로고침합니다');
+        e.outdated = true;
+        throw e;
+      }
       if (r.data) report = Store.mergeRemote(r.data);
       return push(r.sha).then(function (newSha) {
         Store.state.sync.sha = newSha || '';
@@ -220,6 +227,14 @@
       return report;
     }).catch(function (err) {
       running = false;
+      if (err && err.outdated) {
+        /* 로컬 데이터는 localStorage 에 그대로 있으니 새 코드로 다시 열어 동기화한다 */
+        UI.toast(err.message);
+        if (!UI.isTyping()) {
+          setTimeout(function () { location.replace(location.pathname + '?fresh=' + Date.now()); }, 1200);
+        }
+        return null;
+      }
       setBadge('err');
       if (!silent) report(errText(err));
       return null;

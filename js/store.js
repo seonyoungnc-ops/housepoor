@@ -4,6 +4,9 @@
 
   var KEY = 'phb.v1';
   var VERSION = 5;
+  /* 배포 번호 : sw.js 의 CACHE 버전과 함께 올린다.
+     원격 파일이 더 새 번호로 저장돼 있으면 이 기기는 옛 코드이므로 올리지 않고 새로고침한다. */
+  var BUILD = 35;
 
   var CATS = {
     expense: [
@@ -180,8 +183,10 @@
     if (!Array.isArray(s.tx)) s.tx = [];
     s.tomb = s.tomb || {};
     s.goalTomb = s.goalTomb || {};
-    s.memberTomb = s.memberTomb || {};
-    s.itemTomb = s.itemTomb || {};
+    var st0 = splitTombs(s);
+    s.tomb = st0.tx;
+    s.memberTomb = st0.mem;
+    s.itemTomb = st0.item;
     /* 멤버가 1명뿐이면 고를 필요가 없다 */
     if (s.members.length < 2) s.meSet = true;
 
@@ -377,14 +382,46 @@
     }).slice(0, 2);
   }
 
-  /* ---- 동기화용 : 공유 데이터만 추출 ---- */
+  /* ---- 동기화용 : 공유 데이터만 추출 ----
+     멤버·자산/고정지출 묘비는 tomb 안에도 접두어를 붙여 함께 싣는다.
+     구버전 앱은 모르는 필드(memberTomb 등)를 지운 채 올리지만 tomb 은 합쳐서 보존하므로,
+     구버전 기기가 섞여 있어도 삭제 기록이 사라지지 않는다. */
+  var MT = 'member:', IT = 'item:';
+
+  function packTombs() {
+    var out = Object.assign({}, state.tomb);
+    Object.keys(state.memberTomb || {}).forEach(function (k) { out[MT + k] = state.memberTomb[k]; });
+    Object.keys(state.itemTomb || {}).forEach(function (k) { out[IT + k] = state.itemTomb[k]; });
+    return out;
+  }
+
+  /* tomb 에 섞인 접두어 묘비를 종류별로 나눈다 (별도 필드와 합침) */
+  function splitTombs(src) {
+    var tx = {}, mem = Object.assign({}, src.memberTomb || {}), item = Object.assign({}, src.itemTomb || {});
+    Object.keys(src.tomb || {}).forEach(function (k) {
+      var v = src.tomb[k];
+      if (k.indexOf(MT) === 0) { k = k.slice(MT.length); mem[k] = Math.max(mem[k] || 0, v); }
+      else if (k.indexOf(IT) === 0) { k = k.slice(IT.length); item[k] = Math.max(item[k] || 0, v); }
+      else tx[k] = v;
+    });
+    return { tx: tx, mem: mem, item: item };
+  }
+
+  function alive(list, tombs) {
+    return (list || []).filter(function (x) {
+      var t = x && tombs[x.id];
+      return !(t && t >= (x.updatedAt || 0));
+    });
+  }
+
   function sharedPayload() {
     return {
       v: VERSION,
+      build: BUILD,
       members: state.members,
       goals: state.goals,
       tx: state.tx,
-      tomb: state.tomb,
+      tomb: packTombs(),
       goalTomb: state.goalTomb,
       memberTomb: state.memberTomb,
       itemTomb: state.itemTomb,
@@ -420,17 +457,21 @@
        (빈 기본값이 상대방 데이터를 덮어쓰는 것을 막는다) */
     if (isPristine() && Array.isArray(remote.goals) && remote.goals.length) {
       var keepMe = state.me;
+      var rt0 = splitTombs(remote);
       state.goals = remote.goals;
       state.activeGoal = remote.activeGoal || null;
-      state.members = (Array.isArray(remote.members) && remote.members.length
-        ? remote.members : state.members).slice(0, 2);
-      state.tx = Array.isArray(remote.tx) ? remote.tx : [];
-      state.tomb = remote.tomb || {};
+      /* 구버전 기기가 되살려 올린 항목이 있을 수 있어 묘비로 한 번 거른다 */
+      var rMembers = alive(remote.members, rt0.mem);
+      state.members = (rMembers.length ? rMembers : state.members).slice(0, 2);
+      state.tx = alive(remote.tx, rt0.tx);
+      state.tomb = rt0.tx;
       state.goalTomb = remote.goalTomb || {};
-      state.memberTomb = remote.memberTomb || {};
-      state.itemTomb = remote.itemTomb || {};
+      state.memberTomb = rt0.mem;
+      state.itemTomb = rt0.item;
       var localTheme0 = state.theme;
       state.settings = Object.assign(defaults().settings, remote.settings || {});
+      state.settings.assets = alive(state.settings.assets, rt0.item);
+      state.settings.fixed = alive(state.settings.fixed, rt0.item);
       delete state.settings.theme;
       state.theme = localTheme0;
       if (!state.members.some(function (m) { return m.id === keepMe; })) state.me = state.members[0].id;
@@ -447,10 +488,11 @@
       Object.keys(b || {}).forEach(function (k) { out[k] = Math.max(out[k] || 0, b[k]); });
       return out;
     }
-    var tomb = joinTomb(remote.tomb, state.tomb);
+    var rt = splitTombs(remote);
+    var tomb = joinTomb(rt.tx, state.tomb);
     var gTomb = joinTomb(remote.goalTomb, state.goalTomb);
-    var mTomb = joinTomb(remote.memberTomb, state.memberTomb);
-    var iTomb = joinTomb(remote.itemTomb, state.itemTomb);
+    var mTomb = joinTomb(rt.mem, state.memberTomb);
+    var iTomb = joinTomb(rt.item, state.itemTomb);
 
     function unify(localList, remoteList, tombs) {
       var out = pickById(localList), fresh = {};
@@ -710,7 +752,7 @@
   function reset() { return resetData({ scope: 'all', propagate: false }); }
 
   global.Store = {
-    KEY: KEY, VERSION: VERSION, CATS: CATS, THEMES: THEMES, PRODUCTS: PRODUCTS, METHODS: METHODS,
+    KEY: KEY, VERSION: VERSION, BUILD: BUILD, CATS: CATS, THEMES: THEMES, PRODUCTS: PRODUCTS, METHODS: METHODS,
     uid: uid, now: now, todayISO: todayISO,
     load: load, save: save, reset: reset, resetData: resetData,
     get state() { return state; },
