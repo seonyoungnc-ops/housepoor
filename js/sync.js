@@ -170,7 +170,9 @@
       setBadge('ok');
       /* 입력 중이면 건드리지 않는다 (토큰 붙여넣기가 날아가는 것을 막는다) */
       if (!UI.isTyping()) UI.render();
-      if (!silent) {
+      if (report && report.adopted) {
+        UI.toast('저장소에서 데이터를 불러왔어요 · 내역 ' + report.tx + '건');
+      } else if (!silent) {
         var added = report.tx + report.goals;
         UI.toast(added ? '동기화 완료 · 새 항목 ' + added + '건' : '동기화 완료');
       }

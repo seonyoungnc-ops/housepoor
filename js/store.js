@@ -131,15 +131,16 @@
   }
 
   function defaults() {
-    var t = now();
+    /* updatedAt 0 = "아직 손대지 않은 기본값".
+       동기화 병합에서 원격 데이터에 밀려야 하므로 현재 시각을 넣지 않는다. */
     return {
       v: VERSION,
-      members: [{ id: 'm1', name: '나', color: MEMBER_COLORS[0], updatedAt: t }],
+      members: [{ id: 'm1', name: '나', color: MEMBER_COLORS[0], updatedAt: 0 }],
       me: 'm1',
       goals: [{
         id: uid(), rank: 1, name: '', price: 0,
         region: '', size: '', shape: 'tower', floors: 12, theme: 'brick', memo: '',
-        updatedAt: t
+        updatedAt: 0
       }],
       activeGoal: null,
       tx: [],
@@ -154,7 +155,7 @@
         manualSaving: 0,
         fixed: [],
         loan: defaultLoan(),
-        updatedAt: t
+        updatedAt: 0
       },
       theme: 'day',
       sync: { repo: '', path: 'housepoor.json', branch: 'main', token: '', sha: '', lastSync: 0, auto: true }
@@ -213,6 +214,12 @@
       };
     }
     s.goals.forEach(function (g) { delete g.loan; });
+
+    /* 이미 쓰던 기기라면 설정에 타임스탬프를 부여해 기본값으로 오인되지 않게 한다 */
+    var hasLocalData = s.tx.length > 0 ||
+      s.goals.some(function (g) { return (Number(g.price) > 0) || g.name; }) ||
+      s.settings.assets.length > 0 || s.settings.fixed.length > 0;
+    if (hasLocalData && !s.settings.updatedAt) s.settings.updatedAt = now();
     ['product', 'ltv', 'rate', 'years', 'dsr', 'maxLoan', 'extraRate'].forEach(function (k) {
       delete s.settings[k];
     });
@@ -352,10 +359,43 @@
     return m;
   }
 
+  /* 아직 아무것도 입력하지 않은 "새 기기" 상태인가 */
+  function isPristine() {
+    if (state.tx.length) return false;
+    if (Object.keys(state.tomb || {}).length) return false;
+    if (Object.keys(state.goalTomb || {}).length) return false;
+    if (Number(state.settings.updatedAt) > 0) return false;
+    if ((state.settings.assets || []).length) return false;
+    if ((state.settings.fixed || []).length) return false;
+    if (state.goals.length !== 1) return false;
+    return !(Number(state.goals[0].updatedAt) > 0);
+  }
+
   /* 로컬 ↔ 원격 병합 : id 기준 합집합, updatedAt 큰 쪽 채택, 삭제 묘비 적용 */
   function mergeRemote(remote) {
     if (!remote || typeof remote !== 'object') throw new Error('원격 데이터 형식 오류');
-    var report = { tx: 0, goals: 0, members: 0, settings: false };
+    var report = { tx: 0, goals: 0, members: 0, settings: false, adopted: false };
+
+    /* 새 기기라면 병합하지 말고 원격을 그대로 받아온다.
+       (빈 기본값이 상대방 데이터를 덮어쓰는 것을 막는다) */
+    if (isPristine() && Array.isArray(remote.goals) && remote.goals.length) {
+      var keepMe = state.me;
+      state.goals = remote.goals;
+      state.activeGoal = remote.activeGoal || null;
+      state.members = (Array.isArray(remote.members) && remote.members.length
+        ? remote.members : state.members).slice(0, 2);
+      state.tx = Array.isArray(remote.tx) ? remote.tx : [];
+      state.tomb = remote.tomb || {};
+      state.goalTomb = remote.goalTomb || {};
+      var localTheme0 = state.theme;
+      state.settings = Object.assign(defaults().settings, remote.settings || {});
+      delete state.settings.theme;
+      state.theme = localTheme0;
+      if (!state.members.some(function (m) { return m.id === keepMe; })) state.me = state.members[0].id;
+      sortTx();
+      save();
+      return { tx: state.tx.length, goals: state.goals.length, members: 0, settings: true, adopted: true };
+    }
 
     var tomb = Object.assign({}, remote.tomb || {});
     Object.keys(state.tomb || {}).forEach(function (k) {
@@ -605,7 +645,7 @@
     goalsSorted: goalsSorted, addGoal: addGoal, removeGoal: removeGoal,
     activeGoal: activeGoal, touchGoal: touchGoal, touchSettings: touchSettings,
     addMember: addMember, removeMember: removeMember, member: member, meMember: meMember,
-    sharedPayload: sharedPayload, mergeRemote: mergeRemote,
+    sharedPayload: sharedPayload, mergeRemote: mergeRemote, isPristine: isPristine,
     catList: catList, cat: cat, theme: theme, method: method, product: product,
     applyProduct: applyProduct, loanCond: loanCond, defaultLoan: defaultLoan,
     monthKey: monthKey, budgetFor: budgetFor, hasOwnBudget: hasOwnBudget, setBudget: setBudget,
