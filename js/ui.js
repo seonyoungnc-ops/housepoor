@@ -791,7 +791,8 @@
         return esc(t.slice(0, 11)) + '… <b>' + t.length + '자</b>' +
           (bad ? ' <span class="a exp">← ' + esc(bad) + '</span>'
                : (note ? ' <span class="muted">(' + esc(note) + ')</span>' : ' ✓'));
-      })() + '</div></div>' +
+      })() + '<br>토큰 지문: <b id="tokFp">계산 중…</b>' +
+      ' <span class="muted">— 두 기기의 지문이 같아야 같은 토큰이에요</span></div></div>' +
       '<div class="row wrap">' +
       '<button class="btn b" data-act="sync:now">지금 동기화</button>' +
       '<button class="btn" data-act="sync:test">연결 확인</button>' +
@@ -832,7 +833,18 @@
           '<br><br>"앱 새로 받기"를 눌러 캐시를 비우면 대부분 해결됩니다.</div>'
         : '') + '</div>';
 
-    return { html: h };
+    return {
+      html: h,
+      after: function () {
+        var el = document.getElementById('tokFp');
+        if (!el) return;
+        if (!S.state.sync.token) { el.textContent = '없음'; return; }
+        Sync.fingerprint().then(function (f) {
+          var e2 = document.getElementById('tokFp');
+          if (e2) e2.textContent = f || '확인 불가';
+        });
+      }
+    };
   }
 
   /* ---------- 내역 입력 시트 ---------- */

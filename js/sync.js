@@ -69,6 +69,20 @@
     return null;
   }
 
+  /* 토큰 지문 : 값을 노출하지 않고 두 기기가 같은 토큰인지 비교하기 위한 것 */
+  function fingerprint() {
+    var t = cleanToken(cfg().token);
+    if (!t) return Promise.resolve(null);
+    if (!(global.crypto && crypto.subtle && crypto.subtle.digest)) return Promise.resolve(null);
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))
+      .then(function (buf) {
+        var a = new Uint8Array(buf), out = '';
+        for (var i = 0; i < 4; i++) out += ('0' + a[i].toString(16)).slice(-2);
+        return out;
+      })
+      .catch(function () { return null; });
+  }
+
   /* 참고용 안내 — 막지 않는다 */
   function tokenNote() {
     var t = cleanToken(cfg().token);
@@ -355,7 +369,7 @@
 
   global.Sync = {
     configured: configured, pull: pull, push: push,
-    run: run, test: test, diagnose: diagnose, tokenIssue: tokenIssue, tokenNote: tokenNote,
+    run: run, test: test, diagnose: diagnose, tokenIssue: tokenIssue, tokenNote: tokenNote, fingerprint: fingerprint,
     cleanToken: cleanToken, tokenStripped: tokenStripped,
     schedule: schedule, setBadge: setBadge
   };
