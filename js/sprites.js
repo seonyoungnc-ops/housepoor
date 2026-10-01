@@ -419,6 +419,44 @@
     '................'
   ];
 
+  S.cardc = [
+    '................',
+    '................',
+    '................',
+    '..kkkkkkkkkkkk..',
+    '..kuuuuuuuuuuk..',
+    '..kkkkkkkkkkkk..',
+    '..kuuuuuuuuuuk..',
+    '..kuyyyuuuuuuk..',
+    '..kuyyyuuuuuuk..',
+    '..kuuuuuuuuuuk..',
+    '..kuuuuwwwwuuk..',
+    '..kkkkkkkkkkkk..',
+    '................',
+    '................',
+    '................',
+    '................'
+  ];
+
+  S.cardd = [
+    '................',
+    '................',
+    '................',
+    '..kkkkkkkkkkkk..',
+    '..kggggggggggk..',
+    '..kkkkkkkkkkkk..',
+    '..kggggggggggk..',
+    '..kgyyyggggggk..',
+    '..kgyyyggggggk..',
+    '..kggggggggggk..',
+    '..kggggwwwwggk..',
+    '..kkkkkkkkkkkk..',
+    '................',
+    '................',
+    '................',
+    '................'
+  ];
+
   S.cal = [
     '................',
     '...kk......kk...',

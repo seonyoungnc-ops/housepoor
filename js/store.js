@@ -81,6 +81,13 @@
 
   var MEMBER_COLORS = ['#9cc9f0', '#f7b3cb'];
 
+  /* 지출 결제수단 — 셋 다 이번 달 용돈(예산)에서 차감된다 */
+  var METHODS = [
+    { id: 'cash', name: '현금', short: '현금', spr: 'coin' },
+    { id: 'credit', name: '신용카드', short: '신용', spr: 'cardc' },
+    { id: 'debit', name: '체크카드', short: '체크', spr: 'cardd' }
+  ];
+
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
@@ -149,6 +156,7 @@
     });
     s.tx.forEach(function (t) {
       if (!t.by) t.by = s.me;
+      if (t.type === 'expense' && !t.method) t.method = 'cash';
       if (!t.updatedAt) t.updatedAt = now();
     });
     if (p && p.settings && p.settings.theme && !p.theme) s.theme = p.settings.theme;
@@ -353,6 +361,9 @@
     return l.find(function (c) { return c.id === id; }) || l[l.length - 1];
   }
   function theme(id) { return THEMES.find(function (t) { return t.id === id; }) || THEMES[0]; }
+  function method(id) {
+    return METHODS.find(function (m) { return m.id === id; }) || METHODS[0];
+  }
   function product(id) {
     return PRODUCTS.find(function (p) { return p.id === id; }) || PRODUCTS[0];
   }
@@ -388,7 +399,7 @@
   }
 
   global.Store = {
-    KEY: KEY, VERSION: VERSION, CATS: CATS, THEMES: THEMES, PRODUCTS: PRODUCTS,
+    KEY: KEY, VERSION: VERSION, CATS: CATS, THEMES: THEMES, PRODUCTS: PRODUCTS, METHODS: METHODS,
     uid: uid, now: now, todayISO: todayISO,
     load: load, save: save, reset: reset,
     get state() { return state; },
@@ -397,7 +408,7 @@
     activeGoal: activeGoal, touchGoal: touchGoal, touchSettings: touchSettings,
     addMember: addMember, removeMember: removeMember, member: member, meMember: meMember,
     sharedPayload: sharedPayload, mergeRemote: mergeRemote,
-    catList: catList, cat: cat, theme: theme, product: product, applyProduct: applyProduct,
+    catList: catList, cat: cat, theme: theme, method: method, product: product, applyProduct: applyProduct,
     exportJSON: exportJSON, importJSON: importJSON
   };
 })(window);

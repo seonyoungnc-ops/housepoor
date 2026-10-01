@@ -227,6 +227,33 @@
     }).filter(function (x) { return Store.state.members.length > 1; });
   }
 
+  /* 결제수단별 지출 합계 (현금·신용·체크 모두 용돈에서 차감) */
+  function byMethod(from, to) {
+    var tx = Store.state.tx, acc = {};
+    for (var i = 0; i < tx.length; i++) {
+      var t = tx[i];
+      if (t.type !== 'expense') continue;
+      if (from && t.date < from) continue;
+      if (to && t.date > to) continue;
+      acc[t.method || 'cash'] = (acc[t.method || 'cash'] || 0) + t.amount;
+    }
+    return Store.METHODS.map(function (m) {
+      return { method: m, amount: acc[m.id] || 0 };
+    });
+  }
+
+  /* 이번 달 용돈 현황 */
+  function budget(from, to) {
+    var limit = Number(Store.state.settings.monthlyBudget) || 0;
+    var used = sums(from, to).expense;
+    return {
+      limit: limit, used: used,
+      left: limit - used,
+      ratio: limit > 0 ? used / limit : 0,
+      byMethod: byMethod(from, to)
+    };
+  }
+
   /* 카테고리별 합계 */
   function byCategory(type, from, to) {
     var tx = Store.state.tx, acc = {};
@@ -314,6 +341,7 @@
     sums: sums, allSums: allSums, have: have, pace: pace,
     loan: loan, progress: progress,
     monthMap: monthMap, byDate: byDate, byCategory: byCategory, byMember: byMember,
+    byMethod: byMethod, budget: budget,
     noSpendDays: noSpendDays, noSpendStreak: noSpendStreak, series: series
   };
 })(window);

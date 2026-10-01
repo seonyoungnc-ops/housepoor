@@ -179,9 +179,16 @@
         return;
       }
       case 'sheet:close': UI.closeSheet(); return;
-      case 'sheet:type': UI.readSheet(); UI.draft.type = t.dataset.t; UI.renderSheet(); return;
+      case 'sheet:type':
+        UI.readSheet();
+        UI.draft.type = t.dataset.t;
+        if (UI.draft.type === 'expense') { if (!UI.draft.method) UI.draft.method = 'cash'; }
+        else delete UI.draft.method;
+        UI.renderSheet();
+        return;
       case 'sheet:cat': UI.readSheet(); UI.draft.cat = t.dataset.c; UI.renderSheet(); return;
       case 'sheet:by': UI.readSheet(); UI.draft.by = t.dataset.b; UI.renderSheet(); return;
+      case 'sheet:method': UI.readSheet(); UI.draft.method = t.dataset.pm; UI.renderSheet(); return;
       case 'sheet:quick': {
         UI.readSheet();
         UI.draft.amount = (UI.draft.amount || 0) + Number(t.dataset.v);

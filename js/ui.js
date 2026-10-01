@@ -55,10 +55,11 @@
     var c = S.cat(t.type, t.cat);
     var multi = S.state.members.length > 1;
     var who = multi ? dot(S.member(t.by)) + S.member(t.by).name + ' · ' : '';
+    var pay = t.type === 'expense' ? esc(S.method(t.method).short) + ' · ' : '';
     return '<div class="tx" data-act="tx:edit" data-id="' + t.id + '">' +
       spr(c.spr) +
       '<div class="t"><b>' + esc(t.memo || c.name) + '</b>' +
-      '<span>' + who + esc(t.date) + ' · ' + esc(c.name) + '</span></div>' +
+      '<span>' + who + pay + esc(t.date) + ' · ' + esc(c.name) + '</span></div>' +
       '<div class="a ' + m.cls + ' num">' + m.sign + C.fmt(t.amount) + '</div></div>';
   }
 
@@ -158,12 +159,19 @@
       '<div><b class="num a inc">' + C.fmt(mo.income) + '</b><span>수입</span></div>' +
       '<div><b class="num a sav">' + C.fmt(mo.save) + '</b><span>저축</span></div>' +
       '</div>';
-    if (budget > 0) {
-      var br = mo.expense / budget;
+    var bg = C.budget(ym, ymEnd);
+    if (bg.limit > 0) {
       h += '<div class="gap"></div>' +
-        '<div class="row tiny" style="justify-content:space-between"><span>예산 ' + C.fmt(budget) + '원</span>' +
-        '<span>' + Math.round(br * 100) + '% 사용</span></div>' +
-        pbar(Math.min(1, br), br > 1 ? 'over sm' : (br > .8 ? 'warn sm' : 'sm'));
+        '<div class="row tiny" style="justify-content:space-between">' +
+        '<span>이번 달 용돈 ' + C.fmt(bg.limit) + '원</span>' +
+        '<span class="' + (bg.left < 0 ? 'a exp' : '') + '">' +
+        (bg.left >= 0 ? '남은 용돈 ' + C.fmt(bg.left) + '원' : C.fmt(-bg.left) + '원 초과') + '</span></div>' +
+        pbar(Math.min(1, bg.ratio), bg.ratio > 1 ? 'over sm' : (bg.ratio > .8 ? 'warn sm' : 'sm')) +
+        '<div class="hint">' + Math.round(bg.ratio * 100) + '% 사용 · 현금·신용·체크 모두 용돈에서 차감돼요</div>' +
+        '<div class="row wrap tiny" style="margin-top:6px">' +
+        bg.byMethod.map(function (x) {
+          return '<span class="memchip">' + spr(x.method.spr) + esc(x.method.short) + ' ' + C.fmt(x.amount) + '원</span>';
+        }).join('') + '</div>';
     }
     var mem = C.byMember(ym, ymEnd);
     if (mem.length > 1) {
@@ -310,6 +318,19 @@
         }).join('') + '</div>';
     }
 
+    var pm = C.byMethod(from, to);
+    var pmTotal = pm.reduce(function (a, x) { return a + x.amount; }, 0);
+    if (pmTotal > 0) {
+      h += '<div class="card"><div class="card-h"><h2>결제수단별 지출</h2></div>' +
+        pm.map(function (x) {
+          return '<div class="catrow">' + spr(x.method.spr) +
+            '<div class="n">' + esc(x.method.name) + '</div>' +
+            '<div class="bar"><i style="width:' + Math.max(2, Math.round(x.amount / pmTotal * 100)) + '%"></i></div>' +
+            '<div class="v num">' + C.fmt(x.amount) + '</div></div>';
+        }).join('') +
+        '<div class="hint">세 가지 모두 이번 달 용돈(예산)에서 차감됩니다</div></div>';
+    }
+
     h += '<div class="card"><div class="card-h"><h2>카테고리별 지출</h2></div>';
     if (!cats.length) h += '<div class="empty">지출 기록이 없어요</div>';
     else h += cats.map(function (c) {
@@ -448,7 +469,8 @@
       money('연소득', st.annualIncome, 'data-set="annualIncome"') +
       '<div class="hint">' + C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용</div></div>' +
       '<div class="g2">' +
-      '<div class="field"><label>월 지출 예산</label>' + money('월 예산', st.monthlyBudget, 'data-set="monthlyBudget"') + '</div>' +
+      '<div class="field"><label>이번 달 용돈 (예산)</label>' + money('이번 달 용돈', st.monthlyBudget, 'data-set="monthlyBudget"') +
+      '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) : '0원 · 설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
       '<div class="field"><label>월 저축액 직접 입력</label>' + money('월 저축액', st.manualSaving, 'data-set="manualSaving"') +
       '<div class="hint">0이면 기록에서 자동 계산</div></div>' +
       '</div></div>';
@@ -504,9 +526,10 @@
   function openTxSheet(tx, dateISO) {
     UI.editing = tx ? tx.id : null;
     UI.draft = tx ? Object.assign({}, tx) : {
-      type: 'expense', amount: 0, cat: 'food',
+      type: 'expense', amount: 0, cat: 'food', method: 'cash',
       date: dateISO || S.todayISO(), memo: '', by: S.state.me
     };
+    if (!UI.draft.method) UI.draft.method = 'cash';
     renderSheet();
   }
 
@@ -541,6 +564,14 @@
         return '<button class="chip ' + (d.cat === c.id ? 'on' : '') + '" data-act="sheet:cat" data-c="' + c.id + '">' +
           spr(c.spr) + esc(c.name) + '</button>';
       }).join('') + '</div></div>';
+
+    if (d.type === 'expense') {
+      h += '<div class="field"><label>결제수단</label><div class="chips">' +
+        S.METHODS.map(function (mm) {
+          return '<button class="chip ' + (d.method === mm.id ? 'on' : '') + '" data-act="sheet:method" data-pm="' + mm.id + '">' +
+            spr(mm.spr) + esc(mm.name) + '</button>';
+        }).join('') + '</div></div>';
+    }
 
     if (S.state.members.length > 1) {
       h += '<div class="field"><label>누가</label><div class="chips">' +
