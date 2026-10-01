@@ -411,10 +411,11 @@
     }).join('');
   }
 
-  function donutChart(cats) {
-    var total = cats.reduce(function (a, c) { return a + c.amount; }, 0) || 1;
+  /* items: [{label, amount}] */
+  function donutOf(items) {
+    var total = items.reduce(function (a, c) { return a + c.amount; }, 0) || 1;
     var R = 60, CIRC = 2 * Math.PI * R, off = 0;
-    var arcs = cats.map(function (c, i) {
+    var arcs = items.map(function (c, i) {
       var len = c.amount / total * CIRC;
       var seg = '<circle cx="80" cy="80" r="' + R + '" fill="none" stroke="' +
         CHART_COLORS[i % CHART_COLORS.length] + '" stroke-width="30"' +
@@ -423,18 +424,22 @@
       off += len;
       return seg;
     }).join('');
-
     return '<div class="donutwrap">' +
-      '<svg viewBox="0 0 160 160" class="donut" role="img" aria-label="카테고리별 지출 원형 차트">' +
+      '<svg viewBox="0 0 160 160" class="donut" role="img" aria-label="구성 비율 원형 차트">' +
       '<circle cx="80" cy="80" r="' + R + '" fill="none" stroke="var(--panel-2)" stroke-width="30"></circle>' +
       arcs + '</svg>' +
-      '<div class="legend">' + cats.map(function (c, i) {
+      '<div class="legend">' + items.map(function (c, i) {
         return '<div class="lg"><span class="sw" style="background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></span>' +
-          '<span class="nm">' + esc(c.meta.name) + '</span>' +
+          '<span class="nm">' + esc(c.label) + '</span>' +
           '<b class="num">' + Math.round(c.amount / total * 100) + '%</b>' +
           '<span class="am num">' + C.fmt(c.amount) + '</span></div>';
       }).join('') + '</div></div>';
   }
+
+  function donutChart(cats) {
+    return donutOf(cats.map(function (c) { return { label: c.meta.name, amount: c.amount }; }));
+  }
+
 
   /* 면적이 금액에 비례하는 네모 배치 (squarified treemap 간소화) */
   function boxChart(cats) {
@@ -556,20 +561,65 @@
     var h = subTabs('money');
 
     if (which === 'assets') {
-    h += '<div class="card"><div class="card-h"><h2>내 자산 · 소득</h2></div>' +
-      '<div class="field"><label>현재 모아둔 돈 (시드머니)</label>' +
-      money('시드머니', st.seed, 'data-set="seed"', '예) 50000000') +
-      '<div class="hint">' + (st.seed ? C.kor(st.seed) : '기록을 시작하기 전까지 모아둔 금액') + '</div></div>' +
-      '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
-      money('연소득', st.annualIncome, 'data-set="annualIncome"', '예) 60000000') +
-      '<div class="hint">' + (st.annualIncome ? C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용'
-        : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
-      '<div class="g2">' +
-      '<div class="field"><label>기본 용돈 (매달 기본값)</label>' + money('기본 용돈', st.monthlyBudget, 'data-set="monthlyBudget"', '예) 500000') +
-      '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) + ' · 달마다 다르게 쓰려면 홈에서 "용돈 수정"' : '설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
-      '<div class="field"><label>월 저축액 직접 입력</label>' + money('월 저축액', st.manualSaving, 'data-set="manualSaving"', '비워두면 자동') +
-      '<div class="hint">0이면 기록에서 자동 계산</div></div>' +
-      '</div></div>';
+      var list = S.assetList();
+      var total = S.assetTotal();
+      var byType = S.assetByType();
+
+      h += '<div class="card"><div class="card-h"><h2>보유 자산</h2>' +
+        '<button class="btn sm p" data-act="as:add">+ 추가</button></div>';
+
+      if (!list.length) {
+        h += '<div class="empty">예금·적금·주택청약·주식·펀드처럼 지금 가진 자산을 등록해 주세요.<br>' +
+          '합계가 내 집 마련 종잣돈이 됩니다.</div>';
+      } else {
+        h += '<div class="bigmsg" style="margin-bottom:12px">총 자산<br><b>' + C.kor(total) + '</b></div>';
+        h += list.slice().sort(function (x, y) { return y.amount - x.amount; }).map(function (a) {
+          var t = S.assetType(a.type);
+          return '<div class="fxrow" data-act="as:edit" data-id="' + a.id + '">' +
+            spr(t.spr) +
+            '<div class="t"><b>' + esc(a.name || t.name) + '</b>' +
+            '<span>' + esc(t.name) + (a.memo ? ' · ' + esc(a.memo) : '') + '</span></div>' +
+            '<div class="a num">' + C.fmt(a.amount) + '</div></div>';
+        }).join('');
+        if (byType.length > 1) {
+          h += '<div class="divider"></div>' +
+            donutOf(byType.map(function (t) { return { label: t.meta.name, amount: t.amount }; }));
+        }
+      }
+      h += '</div>';
+
+      h += '<div class="card"><div class="card-h"><h2>모은 돈 계산 방식</h2></div>' +
+        '<div class="chips" style="margin-bottom:10px">' +
+        [['both', '자산 + 가계부 저축'], ['assets', '자산 합계만']].map(function (x) {
+          return '<button class="chip ' + (st.haveMode === x[0] ? 'on' : '') +
+            '" data-act="as:mode" data-m="' + x[0] + '">' + x[1] + '</button>';
+        }).join('') + '</div>' +
+        '<div class="note-box">' +
+        (st.haveMode === 'assets'
+          ? '자산 합계만 사용합니다. 주식·펀드처럼 평가액이 바뀌는 자산을 직접 갱신하는 경우에 알맞아요.'
+          : '자산 합계에 가계부로 모은 순저축을 더합니다. 자산은 <b>기록 시작 시점</b> 금액으로 두세요. 자산 금액을 계속 최신화하면 저축이 이중으로 잡힙니다.') +
+        '</div>' +
+        '<div class="gap"></div>' +
+        '<div class="kv"><span>보유 자산</span><b class="num">' + C.kor(S.assetTotal()) + '</b></div>' +
+        (st.haveMode === 'both'
+          ? '<div class="kv"><span>가계부 순저축</span><b class="num">' + C.kor(C.allSums().gain) + '</b></div>'
+          : '') +
+        '<div class="kv"><span><b>모은 돈</b></span><b class="num">' + C.kor(C.have()) + '</b></div></div>';
+
+      h += '<div class="card"><div class="card-h"><h2>소득 · 용돈</h2></div>' +
+        '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
+        money('연소득', st.annualIncome, 'data-set="annualIncome"', '예) 60000000') +
+        '<div class="hint">' + (st.annualIncome ? C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용'
+          : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
+        '<div class="g2">' +
+        '<div class="field"><label>기본 용돈 (매달 기본값)</label>' +
+        money('기본 용돈', st.monthlyBudget, 'data-set="monthlyBudget"', '예) 500000') +
+        '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) + ' · 달마다 다르게 쓰려면 홈에서 "용돈 수정"'
+          : '설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
+        '<div class="field"><label>월 저축액 직접 입력</label>' +
+        money('월 저축액', st.manualSaving, 'data-set="manualSaving"', '비워두면 자동') +
+        '<div class="hint">비워두면 기록에서 자동 계산</div></div>' +
+        '</div></div>';
     }
 
     if (which === 'fixed') {
@@ -716,7 +766,7 @@
       '<div class="hint">데이터는 이 기기의 브라우저에 저장되고, 동기화를 켜면 지정한 저장소에도 올라갑니다.</div></div>';
 
     h += '<div class="card"><div class="card-h"><h2>정보</h2></div>' +
-      '<div class="tiny muted">하우스푸어 v4.0<br>' +
+      '<div class="tiny muted">하우스푸어 v5.0<br>' +
       '폰트: JayeonSans (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
       '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div>' +
       (UI.errors && UI.errors.length

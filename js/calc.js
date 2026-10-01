@@ -67,10 +67,13 @@
 
   function allSums() { return sums(null, null); }
 
-  /* 현재 자기자본(모은 돈) */
+  /* 현재 자기자본(모은 돈)
+     both   : 보유 자산 + 기록으로 모은 순저축 (기본)
+     assets : 보유 자산 합계만 (자산 금액을 직접 최신화하는 경우) */
   function have() {
-    var a = allSums();
-    return Math.max(0, (Number(Store.state.settings.seed) || 0) + a.gain);
+    var base = Store.assetTotal();
+    if (Store.state.settings.haveMode === 'assets') return Math.max(0, base);
+    return Math.max(0, base + allSums().gain);
   }
 
   function firstTxDate() {

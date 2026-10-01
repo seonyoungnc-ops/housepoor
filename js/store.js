@@ -3,7 +3,7 @@
   'use strict';
 
   var KEY = 'phb.v1';
-  var VERSION = 4;
+  var VERSION = 5;
 
   var CATS = {
     expense: [
@@ -81,6 +81,21 @@
 
   var MEMBER_COLORS = ['#9cc9f0', '#f7b3cb'];
 
+  /* 보유 자산 유형 */
+  var ASSET_TYPES = [
+    { id: 'cash', name: '현금·입출금', spr: 'coin' },
+    { id: 'deposit', name: '예금', spr: 'bag' },
+    { id: 'savings', name: '적금', spr: 'piggy' },
+    { id: 'housing', name: '주택청약', spr: 'house' },
+    { id: 'stock', name: '주식', spr: 'chart' },
+    { id: 'fund', name: '펀드·ETF', spr: 'graph' },
+    { id: 'pension', name: '연금·IRP', spr: 'safe' },
+    { id: 'crypto', name: '가상자산', spr: 'star' },
+    { id: 'insurance', name: '저축보험', spr: 'doc' },
+    { id: 'lend', name: '받을 돈', spr: 'mail' },
+    { id: 'other', name: '기타', spr: 'box' }
+  ];
+
   /* 지출 결제수단 — 셋 다 이번 달 용돈(예산)에서 차감된다 */
   var METHODS = [
     { id: 'cash', name: '현금', short: '현금', spr: 'coin' },
@@ -131,7 +146,8 @@
       tomb: {},
       goalTomb: {},
       settings: {
-        seed: 0,
+        assets: [],
+        haveMode: 'both',
         annualIncome: 0,
         monthlyBudget: 0,
         budgets: {},
@@ -169,6 +185,17 @@
     });
     s.settings.budgets = s.settings.budgets || {};
     s.settings.fixed = Array.isArray(s.settings.fixed) ? s.settings.fixed : [];
+    s.settings.assets = Array.isArray(s.settings.assets) ? s.settings.assets : [];
+    s.settings.haveMode = s.settings.haveMode === 'assets' ? 'assets' : 'both';
+
+    /* v4 → v5 : 단일 시드머니를 자산 항목 하나로 옮긴다 */
+    if (Number(old.seed) > 0 && !s.settings.assets.length) {
+      s.settings.assets = [{
+        id: uid(), name: '기존 시드머니', type: 'cash',
+        amount: Math.round(Number(old.seed)), memo: '', updatedAt: now()
+      }];
+    }
+    delete s.settings.seed;
 
     /* 대출 조건은 전역 1벌로 관리한다.
        v2(전역 필드) / v3(목표별 loan) 어느 쪽에서 와도 하나로 모은다. */
@@ -443,6 +470,50 @@
     touchSettings();
   }
 
+  /* ---- 보유 자산 ---- */
+  function assetTypes() { return ASSET_TYPES; }
+  function assetType(id) {
+    return ASSET_TYPES.find(function (t) { return t.id === id; }) || ASSET_TYPES[ASSET_TYPES.length - 1];
+  }
+  function assetList() {
+    return Array.isArray(state.settings.assets) ? state.settings.assets : [];
+  }
+  function addAsset(item) {
+    if (!state.settings.assets) state.settings.assets = [];
+    item.id = item.id || uid();
+    item.amount = Math.round(Number(item.amount) || 0);
+    item.updatedAt = now();
+    state.settings.assets.push(item);
+    touchSettings();
+    return item;
+  }
+  function updateAsset(id, patch) {
+    var a = assetList().find(function (x) { return x.id === id; });
+    if (!a) return null;
+    Object.assign(a, patch);
+    a.amount = Math.round(Number(a.amount) || 0);
+    a.updatedAt = now();
+    touchSettings();
+    return a;
+  }
+  function removeAsset(id) {
+    state.settings.assets = assetList().filter(function (x) { return x.id !== id; });
+    touchSettings();
+  }
+  function assetTotal() {
+    return assetList().reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
+  }
+  /* 유형별 합계 (큰 순) */
+  function assetByType() {
+    var acc = {};
+    assetList().forEach(function (a) {
+      acc[a.type] = (acc[a.type] || 0) + (Number(a.amount) || 0);
+    });
+    return Object.keys(acc).map(function (k) {
+      return { type: k, meta: assetType(k), amount: acc[k] };
+    }).sort(function (a, b) { return b.amount - a.amount; });
+  }
+
   /* ---- 고정지출 ---- */
   function fixedList() {
     return Array.isArray(state.settings.fixed) ? state.settings.fixed : [];
@@ -538,6 +609,9 @@
     catList: catList, cat: cat, theme: theme, method: method, product: product,
     applyProduct: applyProduct, loanCond: loanCond, defaultLoan: defaultLoan,
     monthKey: monthKey, budgetFor: budgetFor, hasOwnBudget: hasOwnBudget, setBudget: setBudget,
+    ASSET_TYPES: ASSET_TYPES, assetTypes: assetTypes, assetType: assetType,
+    assetList: assetList, addAsset: addAsset, updateAsset: updateAsset, removeAsset: removeAsset,
+    assetTotal: assetTotal, assetByType: assetByType,
     fixedList: fixedList, addFixed: addFixed, updateFixed: updateFixed, removeFixed: removeFixed,
     fixedTotal: fixedTotal, fixedDone: fixedDone,
     exportJSON: exportJSON, importJSON: importJSON

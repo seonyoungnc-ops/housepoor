@@ -419,6 +419,44 @@
     '................'
   ];
 
+  S.graph = [
+    '................',
+    '..kkkkkkkkkkkk..',
+    '..kwwwwwwwwwwk..',
+    '..kwwwwwwwwwgk..',
+    '..kwwwwwwwwgwk..',
+    '..kwwwwwwwgwwk..',
+    '..kwwwwwwgwwwk..',
+    '..kwwwwggwwwwk..',
+    '..kwwggwwwwwwk..',
+    '..kggwwwwwwwwk..',
+    '..kwwwwwwwwwwk..',
+    '..kkkkkkkkkkkk..',
+    '................',
+    '................',
+    '................',
+    '................'
+  ];
+
+  S.safe = [
+    '................',
+    '................',
+    '..kkkkkkkkkkkk..',
+    '..kssssssssssk..',
+    '..kskkkkkkkksk..',
+    '..kskwwwwwwksk..',
+    '..kskwwkkwwksk..',
+    '..kskwkyykwksk..',
+    '..kskwwkkwwksk..',
+    '..kskwwwwwwksk..',
+    '..kskkkkkkkksk..',
+    '..kssssssssssk..',
+    '..kkkkkkkkkkkk..',
+    '................',
+    '................',
+    '................'
+  ];
+
   S.cardc = [
     '................',
     '................',

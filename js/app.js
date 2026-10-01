@@ -194,6 +194,37 @@
         return;
       }
 
+      /* ---- 보유 자산 ---- */
+      case 'as:add': openAssetSheet(null); return;
+      case 'as:edit': openAssetSheet(id); return;
+      case 'as:type': readAssetSheet(); UI.asDraft.type = t.dataset.t; renderAssetSheet(); return;
+      case 'as:mode':
+        S.state.settings.haveMode = t.dataset.m;
+        S.touchSettings();
+        UI.render();
+        Sync.schedule();
+        return;
+      case 'as:save': {
+        readAssetSheet();
+        var a3 = UI.asDraft;
+        if (!a3.amount) { UI.toast('금액을 입력해 주세요'); return; }
+        if (a3.id) S.updateAsset(a3.id, a3); else S.addAsset(a3);
+        document.getElementById('sheetWrap').hidden = true;
+        UI.render();
+        UI.toast('자산을 저장했어요');
+        Sync.schedule();
+        return;
+      }
+      case 'as:del': {
+        var aid = UI.asDraft && UI.asDraft.id;
+        S.removeAsset(aid);
+        document.getElementById('sheetWrap').hidden = true;
+        UI.render();
+        UI.toast('삭제했어요');
+        Sync.schedule();
+        return;
+      }
+
       /* ---- 고정지출 ---- */
       case 'fx:add': openFixedSheet(null); return;
       case 'fx:edit': openFixedSheet(id); return;
@@ -419,6 +450,48 @@
       '<div class="hint">월을 바꾸면 그 달의 용돈을 따로 정할 수 있어요.</div>';
     document.getElementById('sheet').innerHTML = h;
     document.getElementById('sheetWrap').hidden = false;
+  }
+
+  /* ---------- 자산 시트 ---------- */
+  function openAssetSheet(id) {
+    var a = id ? S.assetList().find(function (x) { return x.id === id; }) : null;
+    UI.asDraft = a ? Object.assign({}, a)
+      : { name: '', type: 'deposit', amount: 0, memo: '' };
+    renderAssetSheet();
+  }
+
+  function renderAssetSheet() {
+    var a = UI.asDraft;
+    var h = '<h3>' + (a.id ? '자산 수정' : '자산 추가') +
+      '<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+      '<div class="field"><label>종류</label><div class="chips">' +
+      S.assetTypes().map(function (t) {
+        return '<button class="chip ' + (a.type === t.id ? 'on' : '') + '" data-act="as:type" data-t="' + t.id + '">' +
+          Sprites.tag(t.spr) + UI.esc(t.name) + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="field"><label>이름</label>' +
+      '<input type="text" id="asName" value="' + UI.esc(a.name) + '" maxlength="24" placeholder="예) 청년도약계좌, 삼성전자, 국민은행 예금"></div>' +
+      '<div class="field"><label>금액 (원)</label>' +
+      '<input type="text" inputmode="numeric" data-money="1" id="asAmount" value="' +
+      (a.amount ? C.fmt(a.amount) : '') + '" placeholder="예) 10000000"></div>' +
+      '<div class="field"><label>메모</label>' +
+      '<input type="text" id="asMemo" value="' + UI.esc(a.memo || '') + '" maxlength="30" placeholder="선택 입력 (만기일, 계좌 등)"></div>' +
+      '<div class="row" style="margin-top:6px">' +
+      (a.id ? '<button class="btn r" data-act="as:del">삭제</button>' : '') +
+      '<button class="btn p grow" data-act="as:save" style="text-align:center">저장</button></div>';
+    var sheet = document.getElementById('sheet');
+    sheet.innerHTML = h;
+    Sprites.hydrate(sheet);
+    document.getElementById('sheetWrap').hidden = false;
+  }
+
+  function readAssetSheet() {
+    var n = document.getElementById('asName');
+    var a = document.getElementById('asAmount');
+    var m = document.getElementById('asMemo');
+    if (n) UI.asDraft.name = n.value.slice(0, 24);
+    if (a) UI.asDraft.amount = digits(a.value);
+    if (m) UI.asDraft.memo = m.value.slice(0, 30);
   }
 
   /* ---------- 고정지출 시트 ---------- */
