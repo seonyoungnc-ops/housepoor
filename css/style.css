@@ -29,6 +29,10 @@
   --bw:2px;
   --on-accent:#4a4458;
   --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+  --bar:56px;
 }
 html[data-theme="night"]{
   --ink:#eae5f5;
@@ -73,13 +77,15 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 ::-webkit-scrollbar-track{background:var(--panel-2)}
 
 /* ---------- layout ---------- */
-#app{min-height:100dvh;display:grid;padding-top:56px;
+#app{min-height:100dvh;display:grid;padding-top:calc(var(--bar) + var(--safe-t));
   grid-template-areas:"main";
   grid-template-rows:1fr}
 .topbar{
-  position:fixed;top:0;left:0;right:0;z-index:40;height:56px;
+  position:fixed;top:0;left:0;right:0;z-index:40;
+  height:calc(var(--bar) + var(--safe-t));
   display:flex;align-items:center;justify-content:space-between;gap:8px;
-  padding:0 14px;background:var(--yellow);color:var(--ink);
+  padding:var(--safe-t) calc(14px + var(--safe-r)) 0 calc(14px + var(--safe-l));
+  background:var(--yellow);color:var(--ink);
   border-bottom:var(--bw) solid var(--line);
 }
 html[data-theme="night"] .topbar{background:var(--purple);color:var(--on-accent)}
@@ -91,15 +97,16 @@ html[data-theme="night"] .topbar{background:var(--purple);color:var(--on-accent)
 }
 .icon-btn:active{transform:translate(3px,3px);box-shadow:none}
 
-.view{grid-area:main;padding:14px 14px calc(110px + var(--safe-b));max-width:760px;width:100%;margin:0 auto;
-  min-height:calc(100dvh - 56px)}
+.view{grid-area:main;width:100%;max-width:760px;margin:0 auto;
+  padding:14px calc(14px + var(--safe-r)) calc(110px + var(--safe-b)) calc(14px + var(--safe-l));
+  min-height:calc(100dvh - var(--bar) - var(--safe-t))}
 .rail{display:none}
 
 .tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:30;
   display:grid;grid-template-columns:repeat(5,1fr);
   background:var(--panel);border-top:var(--bw) solid var(--line);
-  padding-bottom:var(--safe-b);
+  padding:0 var(--safe-r) var(--safe-b) var(--safe-l);
 }
 .tabbar button{
   background:none;border:0;padding:7px 2px 9px;cursor:pointer;
@@ -112,7 +119,7 @@ html[data-theme="night"] .tabbar button.on{color:var(--ink)}
 .tabbar button.on canvas{opacity:1}
 
 .fab{
-  position:fixed;right:16px;bottom:calc(76px + var(--safe-b));z-index:31;
+  position:fixed;right:calc(16px + var(--safe-r));bottom:calc(76px + var(--safe-b));z-index:31;
   width:56px;height:56px;font-size:28px;line-height:1;
   background:var(--red);color:var(--on-accent);border:var(--bw) solid var(--line);
   box-shadow:var(--shadow);cursor:pointer;font-weight:700;
@@ -122,7 +129,7 @@ html[data-theme="night"] .tabbar button.on{color:var(--ink)}
 @media (min-width:900px){
   #app{grid-template-areas:"rail main";grid-template-columns:190px 1fr}
   .rail{grid-area:rail;display:block;border-right:var(--bw) solid var(--line);
-    background:var(--panel-2);padding:14px 10px;position:fixed;top:56px;bottom:0;width:190px;overflow-y:auto}
+    background:var(--panel-2);padding:14px 10px;position:fixed;top:calc(var(--bar) + var(--safe-t));bottom:0;width:190px;overflow-y:auto}
   .rail button{
     width:100%;display:flex;align-items:center;gap:10px;margin-bottom:9px;
     background:var(--panel);border:var(--bw) solid var(--line);box-shadow:var(--shadow-sm);

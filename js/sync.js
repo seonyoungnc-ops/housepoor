@@ -38,6 +38,25 @@
     };
   }
 
+  /* fetch 자체가 실패하면 브라우저는 그냥 TypeError 를 던진다.
+     원인이 네트워크 차단인지 코드 문제인지 구분해서 알려준다. */
+  function errText(e) {
+    var m = (e && e.message) || '';
+    var isNet = (e && e.name === 'TypeError') || /load failed|failed to fetch|networkerror|network error/i.test(m);
+    if (isNet) {
+      return 'GitHub에 연결할 수 없어요. 네트워크가 api.github.com 을 막고 있는지 확인해 주세요';
+    }
+    if (!m) return '연결 실패';
+    return (e.name && e.name !== 'Error' ? e.name + ': ' : '') + m;
+  }
+
+  /* 인증 없이 GitHub 에 닿는지 확인 → 네트워크 차단과 토큰 문제를 가른다 */
+  function reachable() {
+    return fetch(API + '/rate_limit', { cache: 'no-store' })
+      .then(function (r) { return r.status > 0; })
+      .catch(function () { return false; });
+  }
+
   function msg(res) {
     if (res.status === 401) return '토큰이 만료됐거나 잘못됐어요 (401)';
     if (res.status === 403) return '권한이 없어요. 토큰 권한을 확인하세요 (403)';
@@ -117,7 +136,7 @@
     }).catch(function (err) {
       running = false;
       setBadge('err');
-      if (!silent) UI.toast(err.message || '동기화 실패');
+      if (!silent) report(errText(err));
       return null;
     });
   }
@@ -158,7 +177,23 @@
           UI.render();
         });
       })
-      .catch(function (e) { UI.toast(e.message || '연결 실패'); });
+      .catch(function (e) {
+        var isNet = (e && e.name === 'TypeError');
+        if (!isNet) { report(errText(e)); return; }
+        /* 네트워크 실패면 인증 없는 요청도 되는지 확인해서 범인을 특정 */
+        reachable().then(function (ok) {
+          report(ok
+            ? 'GitHub 에는 닿는데 요청이 막혔어요. 보안앱·광고차단·사내 프록시를 확인해 주세요'
+            : 'GitHub(api.github.com)에 연결할 수 없어요. 와이파이를 끄고 데이터로 시도하거나 다른 네트워크에서 해보세요');
+        });
+      });
+  }
+
+  function report(text) {
+    if (global.UI) {
+      UI.toast(text);
+      if (UI.errors) { UI.errors.push(text); if (UI.errors.length > 10) UI.errors.shift(); }
+    }
   }
 
   /* 404는 원인이 여러 가지다. 토큰이 실제로 무엇을 볼 수 있는지 조회해 범인을 특정한다. */

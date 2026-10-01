@@ -1,17 +1,17 @@
 /* 하우스푸어 : 오프라인 캐시 */
-var CACHE = 'housepoor-v11';
+var CACHE = 'housepoor-v12';
 var ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './css/style.css?v=11',
-  './js/sprites.js?v=11',
-  './js/store.js?v=11',
-  './js/calc.js?v=11',
-  './js/pixel.js?v=11',
-  './js/sync.js?v=11',
-  './js/ui.js?v=11',
-  './js/app.js?v=11',
+  './css/style.css?v=12',
+  './js/sprites.js?v=12',
+  './js/store.js?v=12',
+  './js/calc.js?v=12',
+  './js/pixel.js?v=12',
+  './js/sync.js?v=12',
+  './js/ui.js?v=12',
+  './js/app.js?v=12',
   './fonts/Galmuri11.woff2',
   './fonts/Galmuri11-Bold.woff2',
   './icons/icon.svg',
