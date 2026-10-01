@@ -437,3 +437,11 @@ html[data-theme="night"] .cal .c.today .e,html[data-theme="night"] .cal .c.today
 
 /* ---------- v7 : 토큰 입력 ---------- */
 textarea.masked{-webkit-text-security:disc;text-security:disc;color:var(--muted)}
+
+/* ---------- v8 : 저장 바 ---------- */
+.savebar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  background:var(--yellow);color:var(--on-accent);
+  border:var(--bw) solid var(--line);padding:9px 11px;margin:12px 0 4px;
+}
+.savebar .tiny{flex:1;min-width:120px;font-weight:700}

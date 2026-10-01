@@ -43,31 +43,33 @@
       return;
     }
 
-    /* 목표 */
+    /* 목표 — 저장 버튼을 누를 때까지 보류 */
     if (el.dataset.gid) {
       var g = S.state.goals.find(function (x) { return x.id === el.dataset.gid; });
       if (!g) return;
       var k = el.dataset.k;
-      if (k === 'price') g.price = digits(el.value);
+      var sc = 'g:' + g.id;
+      if (k === 'price') UI.edits[sc + ':price'] = digits(el.value);
       else if (k === 'floors') {
-        g.floors = Pixel.clampFloors(g.shape, el.value);
+        var shape = UI.pend(sc, 'shape', g.shape);
+        var fl = Pixel.clampFloors(shape, el.value);
+        UI.edits[sc + ':floors'] = fl;
         var cv = document.querySelector('canvas.mini[data-goal="' + g.id + '"]');
-        if (cv) UI.paintBuilding(cv, g, C.progress(g).ratio, document.documentElement.dataset.theme === 'night');
+        if (cv) UI.paintBuilding(cv, { shape: shape, floors: fl, theme: UI.pend(sc, 'theme', g.theme) },
+          C.progress(g).ratio, document.documentElement.dataset.theme === 'night');
         var lab = el.parentElement.querySelector('label');
-        var sh = Pixel.shape(g.shape);
-        if (lab) lab.textContent = '층수 (' + g.floors + '층 · ' + sh.min + '~' + sh.max + ')';
-      } else g[k] = el.value;
-      S.touchGoal(g);
-      Sync.schedule();
+        var sh = Pixel.shape(shape);
+        if (lab) lab.textContent = '층수 (' + fl + '층 · ' + sh.min + '~' + sh.max + ')';
+      } else UI.edits[sc + ':' + k] = el.value;
+      markDirty();
       return;
     }
 
-    /* 대출 조건 (전역 1벌) */
+    /* 대출 조건 — 보류 */
     if (el.dataset.loan) {
-      var L = S.loanCond();
-      L[el.dataset.loan] = el.dataset.money === '1' ? digits(el.value) : Number(el.value);
-      S.touchSettings();
-      Sync.schedule();
+      UI.edits['loan:' + el.dataset.loan] =
+        el.dataset.money === '1' ? digits(el.value) : Number(el.value);
+      markDirty();
       return;
     }
 
@@ -91,11 +93,11 @@
       return;
     }
 
-    /* 설정 */
+    /* 소득·용돈 — 보류 */
     if (el.dataset.set) {
-      S.state.settings[el.dataset.set] = el.dataset.money === '1' ? digits(el.value) : Number(el.value);
-      S.touchSettings();
-      Sync.schedule();
+      UI.edits['set:' + el.dataset.set] =
+        el.dataset.money === '1' ? digits(el.value) : Number(el.value);
+      markDirty();
     }
   });
 
@@ -103,6 +105,14 @@
   document.addEventListener('focusout', function () {
     setTimeout(function () { UI.flushPending(); }, 120);
   });
+
+  /* 저장바를 띄우기 위해 한 번만 다시 그린다 (입력 중이면 미뤄짐) */
+  var dirtyT = null;
+  function markDirty() {
+    if (document.querySelector('.savebar')) return;
+    clearTimeout(dirtyT);
+    dirtyT = setTimeout(function () { UI.render(); }, 250);
+  }
 
   document.addEventListener('change', function (e) {
     var el = e.target;
@@ -155,17 +165,17 @@
         list[i].updatedAt = list[j].updatedAt = S.now();
         S.save(); UI.render(); Sync.schedule(); return;
       }
-      case 'goal:theme': {
-        var gt = S.state.goals.find(function (x) { return x.id === id; });
-        if (gt) { gt.theme = t.dataset.t; S.touchGoal(gt); UI.render(); Sync.schedule(); }
+      case 'goal:theme':
+        UI.edits['g:' + id + ':theme'] = t.dataset.t;
+        UI.render();
         return;
-      }
       case 'goal:shape': {
         var gs = S.state.goals.find(function (x) { return x.id === id; });
         if (gs) {
-          gs.shape = t.dataset.s;
-          gs.floors = Pixel.clampFloors(gs.shape, gs.floors);
-          S.touchGoal(gs); UI.render(); Sync.schedule();
+          var sc2 = 'g:' + id;
+          UI.edits[sc2 + ':shape'] = t.dataset.s;
+          UI.edits[sc2 + ':floors'] = Pixel.clampFloors(t.dataset.s, UI.pend(sc2, 'floors', gs.floors));
+          UI.render();
         }
         return;
       }
@@ -457,10 +467,37 @@
 
       /* ---- 설정 ---- */
       case 'set:product': {
-        var p = S.applyProduct(t.dataset.p);
+        var pid = t.dataset.p;
+        var pr2 = S.product(pid);
+        UI.edits['loan:product'] = pid;
+        if (pid !== 'custom') {
+          UI.edits['loan:rate'] = pr2.rate;
+          UI.edits['loan:years'] = pr2.years;
+          UI.edits['loan:ltv'] = pr2.ltv;
+          UI.edits['loan:dsr'] = pr2.dsr;
+          UI.edits['loan:maxLoan'] = pr2.maxLoan;
+        }
         UI.render();
-        UI.toast(p.name + ' 조건을 적용했어요');
+        UI.toast(pr2.name + ' 조건을 불러왔어요 · 저장을 눌러주세요');
+        return;
+      }
+
+      /* ---- 편집 저장 / 되돌리기 ---- */
+      case 'edit:save': {
+        var scope = t.dataset.scope;
+        if (!commitEdits(scope)) { UI.toast('변경된 내용이 없어요'); return; }
+        UI.render({ force: true });
+        UI.toast('저장했어요');
         Sync.schedule();
+        return;
+      }
+      case 'edit:cancel': {
+        var sc3 = t.dataset.scope + ':';
+        Object.keys(UI.edits).forEach(function (k) {
+          if (k.indexOf(sc3) === 0) delete UI.edits[k];
+        });
+        UI.render({ force: true });
+        UI.toast('되돌렸어요');
         return;
       }
       case 'set:fresh': freshReload(); return;
@@ -513,6 +550,36 @@
       '<div class="hint">월을 바꾸면 그 달의 용돈을 따로 정할 수 있어요.</div>';
     document.getElementById('sheet').innerHTML = h;
     document.getElementById('sheetWrap').hidden = false;
+  }
+
+  /* ---------- 편집 반영 ---------- */
+  function commitEdits(scope) {
+    var pre = scope + ':';
+    var keys = Object.keys(UI.edits).filter(function (k) { return k.indexOf(pre) === 0; });
+    if (!keys.length) return false;
+
+    var goal = null;
+    if (scope.indexOf('g:') === 0) {
+      goal = S.state.goals.find(function (x) { return x.id === scope.slice(2); });
+      if (!goal) return false;
+    }
+
+    keys.forEach(function (k) {
+      var field = k.slice(pre.length);
+      var v = UI.edits[k];
+      if (scope === 'loan') S.loanCond()[field] = v;
+      else if (scope === 'set') S.state.settings[field] = v;
+      else if (goal) goal[field] = v;
+      delete UI.edits[k];
+    });
+
+    if (goal) {
+      goal.floors = Pixel.clampFloors(goal.shape, goal.floors);
+      S.touchGoal(goal);
+    } else {
+      S.touchSettings();
+    }
+    return true;
   }
 
   /* ---------- 연결 코드 ---------- */
