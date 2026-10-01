@@ -72,16 +72,16 @@ python -m http.server 8777     # http://127.0.0.1:8777
 ```
 index.html              화면 뼈대
 manifest.webmanifest    PWA 매니페스트
-sw.js                   서비스워커 (HTML 네트워크 우선 / 에셋·CDN 폰트 캐시 우선)
-css/style.css           픽셀 디자인 토큰 + 레이아웃 (모바일 탭바 / 900px↑ 사이드레일)
+sw.js                   서비스워커 (HTML 네트워크 우선 / 에셋 캐시 우선, 버전 쿼리로 갱신)
+css/style.css           디자인 토큰 + 레이아웃 (모바일 탭바 / 900px↑ 사이드레일, safe-area 대응)
 js/sprites.js           16×16 도트 스프라이트 24종
 js/pixel.js             건물 렌더러 — 형태 6종, 컨테이너 비율에 맞춰 가로 도트 수를 계산해 배경을 꽉 채움
 js/store.js             데이터 모델·카테고리·대출 상품·멤버·동기화 병합
 js/calc.js              금액 포맷(억/만), 집계, 대출·기간 계산
 js/sync.js              GitHub Contents API 동기화
-js/ui.js                화면 5종 + 입력 시트
+js/ui.js                화면·하위 탭 + 차트(막대/도넛/트리맵) + 입력 시트
 js/app.js               이벤트 위임, 백업, 테마, SW 등록
-fonts/                  Galmuri11 (SIL OFL) — 없으면 jsDelivr로 폴백
+fonts/                  JayeonSans Regular/Medium (SIL OFL)
 icons/                  SVG + PNG 앱 아이콘
 ```
 
@@ -90,4 +90,4 @@ icons/                  SVG + PNG 앱 아이콘
 ## 라이선스
 
 - 코드: 자유 사용
-- 폰트: [Galmuri](https://github.com/quiple/galmuri) — SIL Open Font License 1.1
+- 폰트: JayeonSans (자연 Sans, Pretendard 기반) — SIL Open Font License 1.1
