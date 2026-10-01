@@ -1,5 +1,5 @@
 /* 하우스푸어 : 오프라인 캐시 */
-var CACHE = 'housepoor-v4';
+var CACHE = 'housepoor-v5';
 var ASSETS = [
   './',
   './index.html',

@@ -39,9 +39,10 @@
   }
 
   function msg(res) {
-    if (res.status === 401) return '토큰이 올바르지 않아요 (401)';
-    if (res.status === 403) return '권한이 없어요. 토큰 범위를 확인하세요 (403)';
-    if (res.status === 404) return '저장소나 경로를 찾을 수 없어요 (404)';
+    if (res.status === 401) return '토큰이 만료됐거나 잘못됐어요 (401)';
+    if (res.status === 403) return '권한이 없어요. 토큰 권한을 확인하세요 (403)';
+    /* 비공개 저장소는 권한이 없어도 404를 준다 → 토큰 범위를 먼저 의심 */
+    if (res.status === 404) return '토큰이 이 저장소에 접근할 수 없어요. [연결 확인]을 눌러보세요 (404)';
     if (res.status === 409) return '다른 기기가 먼저 저장했어요. 다시 시도해 주세요 (409)';
     if (res.status === 422) return '요청이 거절됐어요. 브랜치 이름을 확인하세요 (422)';
     return 'GitHub 오류 (' + res.status + ')';
@@ -121,16 +122,51 @@
     });
   }
 
+  /* 연결 확인 : 토큰 주인 → 저장소 접근 → 파일 순으로 짚어준다 */
   function test() {
-    if (!configured()) { UI.toast('저장소와 토큰을 입력해 주세요'); return; }
     var c = cfg();
-    fetch(API + '/repos/' + c.repo.trim(), { headers: headers(), cache: 'no-store' })
+    if (!c.repo || !c.token) { UI.toast('저장소와 토큰을 모두 입력해 주세요'); return; }
+    var repo = c.repo.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+    if (!/^[^/\s]+\/[^/\s]+$/.test(repo)) {
+      UI.toast('저장소는 "계정/저장소명" 형식이어야 해요');
+      return;
+    }
+    if (repo !== c.repo) { Store.state.sync.repo = repo; Store.save(); }
+
+    var who = '';
+    fetch(API + '/user', { headers: headers(), cache: 'no-store' })
       .then(function (res) {
+        if (res.status === 401) throw new Error('토큰이 만료됐거나 잘못됐어요 (401)');
         if (!res.ok) throw new Error(msg(res));
         return res.json();
       })
+      .then(function (u) {
+        who = u.login;
+        var owner = repo.split('/')[0];
+        return fetch(API + '/repos/' + repo, { headers: headers(), cache: 'no-store' })
+          .then(function (res) {
+            if (res.status === 404) {
+              if (owner.toLowerCase() !== who.toLowerCase()) {
+                throw new Error('토큰 주인은 ' + who + '인데 저장소는 ' + owner + ' 소유예요. 계정을 확인하세요');
+              }
+              throw new Error(who + ' 토큰에 ' + repo + ' 권한이 없어요. 토큰의 Repository access에 이 저장소를 추가하세요');
+            }
+            if (!res.ok) throw new Error(msg(res));
+            return res.json();
+          });
+      })
       .then(function (j) {
-        UI.toast((j.private ? '비공개' : '⚠ 공개') + ' 저장소 ' + j.full_name + ' 연결 OK');
+        if (!j.private) {
+          UI.toast('⚠ ' + j.full_name + ' 은 공개 저장소예요! 비공개 저장소를 쓰세요');
+          return;
+        }
+        Store.state.sync.branch = (Store.state.sync.branch || j.default_branch || 'main').trim();
+        Store.save();
+        return pull().then(function (r) {
+          UI.toast('연결 OK · ' + who + ' → ' + j.full_name +
+            ' (' + (r.data ? '기존 데이터 있음' : '첫 동기화 때 파일 생성') + ')');
+          UI.render();
+        });
       })
       .catch(function (e) { UI.toast(e.message || '연결 실패'); });
   }
