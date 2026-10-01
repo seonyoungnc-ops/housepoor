@@ -41,9 +41,11 @@
     return '<div class="pbar ' + (cls || '') + '">' + h + '</div>';
   }
 
-  function money(name, value, extra) {
+  function money(name, value, extra, ph) {
+    var v = Number(value) || 0;
     return '<input type="text" inputmode="numeric" data-money="1" ' + (extra || '') +
-      ' value="' + C.fmt(value) + '" aria-label="' + esc(name) + '">';
+      ' value="' + (v ? C.fmt(v) : '') + '" placeholder="' + esc(ph || '입력해 주세요') +
+      '" aria-label="' + esc(name) + '">';
   }
 
   function dot(m) {
@@ -78,6 +80,11 @@
 
   function isNight() { return document.documentElement.dataset.theme === 'night'; }
 
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+  }
+
   /* ---------- 홈 ---------- */
   function viewHome() {
     var goals = S.goalsSorted();
@@ -103,17 +110,21 @@
 
     h += '<div class="hero">' + heroCanvas('heroCanvas') +
       '<div class="rankbadge">' + g.rank + '위</div>' +
-      '<div class="nameplate">' + esc(g.name || '이름 없는 집') + '</div>' +
+      '<div class="nameplate">' + esc(g.name || '이름을 지어주세요') + '</div>' +
       '<div class="shapetag">' + esc(Pixel.shape(g.shape).name) + ' · ' + Pixel.clampFloors(g.shape, g.floors) + '층</div>' +
       '</div>';
 
     h += '<div class="card">' +
-      '<div class="card-h"><h2>' + esc(g.name) + ' 모으기</h2>' +
+      '<div class="card-h"><h2>' + esc(g.name || '목표') + ' 모으기</h2>' +
       '<span class="tag">' + Math.floor(p.ratio * 100) + '%</span></div>' +
       pbar(p.ratio, p.ratio >= 1 ? '' : (p.ratio < .3 ? 'warn' : '')) +
       '<div class="gap"></div>';
 
-    if (p.eta && p.eta.done) {
+    if (p.noPrice) {
+      h += '<div class="bigmsg">목표 금액을 아직 안 정했어요<br>' +
+        '<span class="tiny">목표 탭에서 아파트 이름과 금액을 입력하면 계산이 시작됩니다</span></div>' +
+        '<div class="gap"></div><button class="btn p block" data-act="nav:goals">목표 설정하러 가기</button>';
+    } else if (p.eta && p.eta.done) {
       h += '<div class="bigmsg celebrate">🎉 자기자본 준비 완료!<br>지금 바로 <b>입주 가능</b>해요</div>';
     } else if (p.eta && p.eta.tooLong) {
       h += '<div class="bigmsg">지금 속도로는 <b>50년 이상</b> 걸려요<br>' +
@@ -357,7 +368,7 @@
 
       h += '<div class="goalcard"><div class="gh">' +
         '<span class="rk">' + g.rank + '위</span>' +
-        '<span class="nm">' + esc(g.name || '이름 없는 집') + '</span>' +
+        '<span class="nm">' + esc(g.name || '(이름 없음)') + '</span>' +
         '<button class="btn sm" data-act="goal:up" data-id="' + g.id + '"' + (idx === 0 ? ' disabled' : '') + '>▲</button>' +
         '<button class="btn sm" data-act="goal:down" data-id="' + g.id + '"' + (idx === goals.length - 1 ? ' disabled' : '') + '>▼</button>' +
         (goals.length > 1 ? '<button class="btn sm r" data-act="goal:del" data-id="' + g.id + '">삭제</button>' : '') +
@@ -369,8 +380,8 @@
       h += '<div class="field"><label>아파트 이름</label>' +
         '<input type="text" data-gid="' + g.id + '" data-k="name" value="' + esc(g.name) + '" maxlength="20" placeholder="예) 한강뷰 우리집"></div>' +
         '<div class="field"><label>목표 금액 (원)</label>' +
-        money('목표 금액', g.price, 'data-gid="' + g.id + '" data-k="price"') +
-        '<div class="hint">' + C.kor(g.price) + '</div></div>';
+        money('목표 금액', g.price, 'data-gid="' + g.id + '" data-k="price"', '예) 600000000') +
+        '<div class="hint">' + (g.price ? C.kor(g.price) : '아파트 매매가를 입력해 주세요') + '</div></div>';
 
       h += '<div class="g2">' +
         '<div class="field"><label>지역 / 단지</label>' +
@@ -463,15 +474,16 @@
 
     h += '<div class="card"><div class="card-h"><h2>내 자산 · 소득</h2></div>' +
       '<div class="field"><label>현재 모아둔 돈 (시드머니)</label>' +
-      money('시드머니', st.seed, 'data-set="seed"') +
-      '<div class="hint">' + C.kor(st.seed) + ' · 기록을 시작하기 전까지 모은 금액</div></div>' +
+      money('시드머니', st.seed, 'data-set="seed"', '예) 50000000') +
+      '<div class="hint">' + (st.seed ? C.kor(st.seed) : '기록을 시작하기 전까지 모아둔 금액') + '</div></div>' +
       '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
-      money('연소득', st.annualIncome, 'data-set="annualIncome"') +
-      '<div class="hint">' + C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용</div></div>' +
+      money('연소득', st.annualIncome, 'data-set="annualIncome"', '예) 60000000') +
+      '<div class="hint">' + (st.annualIncome ? C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용'
+        : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
       '<div class="g2">' +
-      '<div class="field"><label>이번 달 용돈 (예산)</label>' + money('이번 달 용돈', st.monthlyBudget, 'data-set="monthlyBudget"') +
+      '<div class="field"><label>이번 달 용돈 (예산)</label>' + money('이번 달 용돈', st.monthlyBudget, 'data-set="monthlyBudget"', '예) 500000') +
       '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) : '0원 · 설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
-      '<div class="field"><label>월 저축액 직접 입력</label>' + money('월 저축액', st.manualSaving, 'data-set="manualSaving"') +
+      '<div class="field"><label>월 저축액 직접 입력</label>' + money('월 저축액', st.manualSaving, 'data-set="manualSaving"', '비워두면 자동') +
       '<div class="hint">0이면 기록에서 자동 계산</div></div>' +
       '</div></div>';
 
@@ -500,16 +512,17 @@
       '<div class="field"><label>DSR (%) · 0이면 미적용</label><input type="number" min="0" max="100" step="1" value="' + st.dsr + '" data-set="dsr"></div>' +
       '<div class="field"><label>부대비용 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + st.extraRate + '" data-set="extraRate"></div>' +
       '</div>' +
-      '<div class="field"><label>상품 대출 한도 (0이면 제한 없음)</label>' + money('대출 한도', st.maxLoan, 'data-set="maxLoan"') +
+      '<div class="field"><label>상품 대출 한도 (비우면 제한 없음)</label>' + money('대출 한도', st.maxLoan, 'data-set="maxLoan"', '제한 없음') +
       '<div class="hint">' + (st.maxLoan ? C.kor(st.maxLoan) : '한도 제한 없음') + '</div></div>' +
       '<div class="hint">정책자금 조건은 공고에 따라 수시로 바뀝니다. 선택 후 실제 공고 기준으로 값을 직접 조정해서 쓰세요.</div></div>';
 
     h += '<div class="card"><div class="card-h"><h2>앱 · 데이터</h2></div>' +
       '<div class="row wrap" style="gap:8px">' +
-      '<button class="btn b" data-act="set:install"' + (UI.installEvt ? '' : ' disabled') + '>홈 화면에 설치</button>' +
+      '<button class="btn b" data-act="set:install">' +
+      (isStandalone() ? '설치됨 ✓' : (UI.installEvt ? '홈 화면에 설치' : '설치 방법 보기')) + '</button>' +
       '<button class="btn" data-act="set:export">백업 내보내기</button>' +
       '<button class="btn" data-act="set:import">백업 불러오기</button>' +
-      '<button class="btn r" data-act="set:reset">전체 초기화</button>' +
+      '<button class="btn r" data-act="set:reset">초기화</button>' +
       '</div>' +
       '<input type="file" id="importFile" accept="application/json,.json" style="display:none">' +
       '<div class="hint">데이터는 이 기기의 브라우저에 저장되고, 동기화를 켜면 지정한 저장소에도 올라갑니다.</div></div>';

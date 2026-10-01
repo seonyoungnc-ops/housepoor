@@ -107,7 +107,7 @@
       members: [{ id: 'm1', name: '나', color: MEMBER_COLORS[0], updatedAt: t }],
       me: 'm1',
       goals: [{
-        id: uid(), rank: 1, name: '우리집 1호', price: 600000000,
+        id: uid(), rank: 1, name: '', price: 0,
         region: '', size: '', shape: 'tower', floors: 12, theme: 'brick', memo: '', updatedAt: t
       }],
       activeGoal: null,
@@ -116,7 +116,7 @@
       goalTomb: {},
       settings: {
         seed: 0,
-        annualIncome: 50000000,
+        annualIncome: 0,
         monthlyBudget: 0,
         manualSaving: 0,
         product: 'normal',
@@ -225,7 +225,7 @@
     var rank = 1;
     while (used.indexOf(rank) >= 0) rank++;
     var g = {
-      id: uid(), rank: rank, name: '우리집 ' + rank + '호', price: 500000000,
+      id: uid(), rank: rank, name: '', price: 0,
       region: '', size: '', shape: 'tower', floors: 12,
       theme: THEMES[state.goals.length % THEMES.length].id, memo: '', updatedAt: now()
     };
@@ -391,17 +391,44 @@
     sortTx();
     save();
   }
-  function reset() {
-    var keepSync = state && state.sync;
-    state = defaults();
-    if (keepSync) state.sync = keepSync;
+  /* 초기화
+     scope     : 'tx'(내역만) | 'all'(전체)
+     propagate : true 면 삭제 묘비를 남겨 동기화된 다른 기기에서도 지워진다.
+                 false 면 묘비를 비워 이 기기에서만 지운다(다음 동기화 때 원격 데이터가 다시 내려온다). */
+  function resetData(opts) {
+    opts = opts || {};
+    var scope = opts.scope === 'all' ? 'all' : 'tx';
+    var t = now();
+
+    if (opts.propagate) {
+      state.tx.forEach(function (x) { state.tomb[x.id] = t; });
+      if (scope === 'all') state.goals.forEach(function (g) { state.goalTomb[g.id] = t; });
+    } else {
+      state.tomb = {};
+      state.goalTomb = {};
+    }
+
+    state.tx = [];
+
+    if (scope === 'all') {
+      var d = defaults();
+      state.goals = d.goals;
+      state.activeGoal = null;
+      state.members = d.members;
+      state.me = state.members[0].id;
+      state.settings = d.settings;
+      state.settings.updatedAt = t;
+    }
     save();
+    return { scope: scope, propagate: !!opts.propagate };
   }
+
+  function reset() { return resetData({ scope: 'all', propagate: false }); }
 
   global.Store = {
     KEY: KEY, VERSION: VERSION, CATS: CATS, THEMES: THEMES, PRODUCTS: PRODUCTS, METHODS: METHODS,
     uid: uid, now: now, todayISO: todayISO,
-    load: load, save: save, reset: reset,
+    load: load, save: save, reset: reset, resetData: resetData,
     get state() { return state; },
     addTx: addTx, updateTx: updateTx, removeTx: removeTx,
     goalsSorted: goalsSorted, addGoal: addGoal, removeGoal: removeGoal,

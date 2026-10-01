@@ -162,6 +162,10 @@
   function progress(goal) {
     var L = loan(goal);
     var h = have();
+    /* 목표 금액이 없으면 진행률을 계산하지 않는다 (0원을 달성으로 오인하지 않도록) */
+    if (!L.price) {
+      return { goal: goal, loan: L, have: h, short: 0, ratio: 0, pace: pace(), eta: null, noPrice: true };
+    }
     var short = Math.max(0, L.needCash - h);
     var p = L.needCash > 0 ? Math.min(1, h / L.needCash) : 1;
     var pc = pace();

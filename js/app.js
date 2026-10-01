@@ -253,19 +253,93 @@
       }
       case 'set:export': doExport(); return;
       case 'set:import': document.getElementById('importFile').click(); return;
-      case 'set:reset':
-        askConfirm('전체 초기화할까요?', '이 기기의 모든 내역과 목표가 삭제됩니다. 먼저 백업을 내보내는 것을 권장해요.', '초기화', function () {
-          S.reset(); applyTheme(); UI.view = 'home'; UI.render({ top: true }); UI.toast('초기화했어요');
-        });
+      case 'set:reset': openResetSheet(); return;
+      case 'reset:go': {
+        var scope = t.dataset.scope;
+        var cb = document.getElementById('resetPropagate');
+        var propagate = !!(cb && cb.checked);
+        S.resetData({ scope: scope, propagate: propagate });
+        document.getElementById('sheetWrap').hidden = true;
+        applyTheme();
+        UI.view = 'home';
+        UI.render({ top: true });
+        UI.toast(scope === 'all' ? '전체 초기화했어요' : '내역을 모두 삭제했어요');
+        if (propagate && Sync.configured()) Sync.run(true);
         return;
+      }
       case 'set:install':
         if (UI.installEvt) {
           UI.installEvt.prompt();
           UI.installEvt.userChoice.then(function () { UI.installEvt = null; UI.render(); });
+        } else {
+          openInstallSheet();
         }
         return;
     }
   });
+
+
+  /* ---------- 초기화 시트 ---------- */
+  function openResetSheet() {
+    var synced = Sync.configured();
+    var h = '<h3>초기화<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+      '<div class="tiny muted" style="margin-bottom:12px">' +
+      '현재 내역 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개가 있어요.<br>' +
+      '되돌릴 수 없으니 필요하면 먼저 <b>백업 내보내기</b>를 해주세요.</div>';
+
+    if (synced) {
+      h += '<label class="row tiny" style="gap:7px;cursor:pointer;margin-bottom:12px;' +
+        'border:var(--bw) solid var(--line);padding:9px 10px;background:var(--panel)">' +
+        '<input type="checkbox" id="resetPropagate" checked style="width:auto;flex:none">' +
+        '<span>연결된 저장소와 <b>다른 기기에서도</b> 삭제<br>' +
+        '<span class="muted">끄면 이 기기에서만 지워지고, 다음 동기화 때 다시 내려옵니다</span></span></label>';
+    }
+
+    h += '<button class="btn block" data-act="reset:go" data-scope="tx" style="margin-bottom:9px">' +
+      '가계부 내역만 삭제</button>' +
+      '<div class="hint" style="margin-bottom:14px">목표·설정·용돈은 그대로 둡니다</div>' +
+      '<button class="btn r block" data-act="reset:go" data-scope="all">전체 초기화</button>' +
+      '<div class="hint">내역 · 목표 · 소득 · 용돈 · 대출 조건까지 모두 지웁니다 (동기화 설정은 유지)</div>';
+
+    document.getElementById('sheet').innerHTML = h;
+    document.getElementById('sheetWrap').hidden = false;
+  }
+
+  /* ---------- 설치 안내 시트 ---------- */
+  function openInstallSheet() {
+    var ua = navigator.userAgent;
+    var iOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    var android = /Android/.test(ua);
+    var standalone = window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+
+    var h = '<h3>홈 화면에 설치<button class="icon-btn" data-act="sheet:close">✕</button></h3>';
+
+    if (standalone) {
+      h += '<div class="note-box">이미 앱으로 설치해서 실행 중이에요 ✅</div>';
+    } else if (iOS) {
+      h += '<div class="note-box"><b>iPhone / iPad (Safari)</b><br>' +
+        '1. 아래쪽 <b>공유 버튼</b>(□↑) 누르기<br>' +
+        '2. 목록을 내려서 <b>"홈 화면에 추가"</b> 선택<br>' +
+        '3. 오른쪽 위 <b>추가</b> 누르기</div>' +
+        '<div class="hint">iOS는 Safari에서만 설치할 수 있어요. Chrome 앱에서는 안 됩니다.</div>';
+    } else if (android) {
+      h += '<div class="note-box"><b>Android (Chrome)</b><br>' +
+        '1. 오른쪽 위 <b>⋮ 메뉴</b> 누르기<br>' +
+        '2. <b>"앱 설치"</b> 또는 <b>"홈 화면에 추가"</b> 선택</div>';
+    } else {
+      h += '<div class="note-box"><b>PC (Chrome / Edge)</b><br>' +
+        '1. 주소창 오른쪽 끝의 <b>설치 아이콘</b>(⊞ 또는 모니터 모양) 클릭<br>' +
+        '2. 없으면 <b>⋮ 메뉴 → 캐스트·저장 및 공유 → 페이지를 앱으로 설치</b></div>';
+    }
+
+    h += '<div class="hint">설치하면 주소창 없이 앱처럼 열리고, 인터넷이 끊겨도 동작합니다. ' +
+      '가계부 데이터는 기기마다 따로 저장되니, 두 기기에서 쓰려면 각 기기에서 동기화 설정을 해주세요.</div>' +
+      '<button class="btn p block" data-act="sheet:close" style="margin-top:12px">확인</button>';
+
+    document.getElementById('sheet').innerHTML = h;
+    document.getElementById('sheetWrap').hidden = false;
+  }
 
   /* ---------- 백업 ---------- */
   function doExport() {
