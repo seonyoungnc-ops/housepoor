@@ -344,11 +344,6 @@
         : '') +
       '</div>';
 
-    if (bg.fixedLeft > 0) {
-      h += '<div class="hint">남은 고정지출 ' + short(bg.fixedLeft) + '원을 빼면 ' +
-        short(bg.leftAfterFixed) + '원</div>';
-    }
-
     if (S.state.members.length > 1 && bg.sharedUsed > 0) {
       h += '<div class="hint">공동 지출 ' + short(bg.sharedUsed) + '원은 용돈에서 빠지지 않아요</div>';
     }
