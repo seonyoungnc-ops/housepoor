@@ -45,7 +45,7 @@
 
   /* 기간 합계 : from~to (ISO, 포함) */
   function sums(from, to, list) {
-    var tx = list || Store.state.tx;
+    var tx = list || Store.viewTx();
     var r = { expense: 0, income: 0, save: 0, count: 0 };
     for (var i = 0; i < tx.length; i++) {
       var t = tx[i];
@@ -77,7 +77,7 @@
   }
 
   function firstTxDate() {
-    var tx = Store.state.tx;
+    var tx = Store.viewTx();
     if (!tx.length) return null;
     return tx[tx.length - 1].date;
   }
@@ -205,7 +205,7 @@
   function monthMap(y, m) {
     var pre = y + '-' + String(m + 1).padStart(2, '0');
     var map = {};
-    var tx = Store.state.tx;
+    var tx = Store.viewTx();
     for (var i = 0; i < tx.length; i++) {
       var t = tx[i];
       if (t.date.slice(0, 7) !== pre) continue;
@@ -218,23 +218,28 @@
   }
 
   function byDate(dateISO) {
-    return Store.state.tx.filter(function (t) { return t.date === dateISO; });
+    return Store.viewTx().filter(function (t) { return t.date === dateISO; });
   }
 
-  /* 멤버별 지출 합계 */
+  /* 멤버별 개인 지출 합계 + 공동 지출 (둘이 쓸 때만) */
+  var SHARED_MEMBER = { id: 'shared', name: '공동', color: '#c2bfbb' };
   function byMember(from, to) {
-    var tx = Store.state.tx, acc = {};
+    if (Store.state.members.length < 2) return [];
+    var tx = Store.viewTx(), acc = {}, shared = 0;
     for (var i = 0; i < tx.length; i++) {
       var t = tx[i];
       if (t.type !== 'expense') continue;
       if (from && t.date < from) continue;
       if (to && t.date > to) continue;
+      if (t.shared) { shared += t.amount; continue; }
       var k = t.by || 'm1';
       acc[k] = (acc[k] || 0) + t.amount;
     }
-    return Store.state.members.map(function (m) {
+    var out = Store.state.members.map(function (m) {
       return { member: m, amount: acc[m.id] || 0 };
-    }).filter(function (x) { return Store.state.members.length > 1; });
+    });
+    if (shared > 0) out.push({ member: SHARED_MEMBER, amount: shared });
+    return out;
   }
 
   /* 해당 연도의 월별 합계 */
@@ -249,7 +254,7 @@
 
   /* 결제수단별 지출 합계 (현금·신용·체크 모두 용돈에서 차감) */
   function byMethod(from, to) {
-    var tx = Store.state.tx, acc = {};
+    var tx = Store.viewTx(), acc = {};
     for (var i = 0; i < tx.length; i++) {
       var t = tx[i];
       if (t.type !== 'expense') continue;
@@ -263,11 +268,15 @@
     });
   }
 
-  /* 해당 월 용돈 현황 (월별 지정값 > 기본값) */
+  /* 해당 월 "내" 용돈 현황 (월별 지정값 > 기본값)
+     내 개인 지출만 차감한다. 공동 지출은 누구 용돈에서도 빠지지 않는다. */
   function budget(from, to, ym) {
     ym = ym || String(from || '').slice(0, 7);
+    var me = Store.state.me;
     var limit = Store.budgetFor(ym);
-    var used = sums(from, to).expense;
+    var vis = Store.visibleTx();
+    var used = sums(from, to, vis.filter(function (t) { return t.by === me && !t.shared; })).expense;
+    var sharedUsed = sums(from, to, vis.filter(function (t) { return !!t.shared; })).expense;
     var fixedPlan = Store.fixedTotal();
     var done = Store.fixedDone(ym);
     var fixedLeft = Store.fixedList().reduce(function (a, f) {
@@ -278,6 +287,7 @@
       limit: limit,
       custom: Store.hasOwnBudget(ym),
       used: used,
+      sharedUsed: sharedUsed,
       left: limit - used,
       ratio: limit > 0 ? used / limit : 0,
       byMethod: byMethod(from, to),
@@ -289,7 +299,7 @@
 
   /* 카테고리별 합계 */
   function byCategory(type, from, to) {
-    var tx = Store.state.tx, acc = {};
+    var tx = Store.viewTx(), acc = {};
     for (var i = 0; i < tx.length; i++) {
       var t = tx[i];
       if (t.type !== type) continue;

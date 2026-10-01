@@ -17,6 +17,7 @@
     period: 'month',
     cursor: new Date(),
     statMode: 'month',
+    who: 'all',
     chartMode: 'bar',
     edits: {},
     paceUnit: 'month',
@@ -90,7 +91,10 @@
     var m = TYPE_META[t.type] || TYPE_META.expense;
     var c = S.cat(t.type, t.cat);
     var multi = S.state.members.length > 1;
-    var who = multi ? dot(S.member(t.by)) + esc(mname(S.member(t.by))) + ' · ' : '';
+    var who = !multi ? ''
+      : (t.shared ? '<span class="tag">공동</span> '
+        : dot(S.member(t.by)) + esc(mname(S.member(t.by))) + ' · ');
+    if (t.private) who = '🔒 ' + who;
     var pay = (t.type === 'expense' && S.method) ? esc(S.method(t.method).short) + ' · ' : '';
     return '<div class="tx" data-act="tx:edit" data-id="' + t.id + '">' +
       spr(c.spr) +
@@ -161,7 +165,6 @@
     var mo = C.sums(ym, ymEnd);
     var ns = C.noSpendDays(now.getFullYear(), now.getMonth());
     var streak = C.noSpendStreak();
-    var budget = Number(S.state.settings.monthlyBudget) || 0;
     var h = whoAmIBox();
 
     /* 아무것도 없는 새 기기 : 초대받아 온 사람을 위한 입구 */
@@ -266,7 +269,7 @@
     if (bg.limit > 0) {
       h += '<div class="divider"></div>' +
         '<div class="row tiny" style="justify-content:space-between">' +
-        '<span>예산 ' + short(bg.limit) + '원' + (bg.custom ? ' <span class="tag">이 달만</span>' : '') + '</span>' +
+        '<span>' + (S.state.members.length > 1 ? '내 용돈 ' : '예산 ') + short(bg.limit) + '원' + (bg.custom ? ' <span class="tag">이 달만</span>' : '') + '</span>' +
         '<span>' + Math.round(bg.ratio * 100) + '% 사용</span></div>' +
         pbar(Math.min(1, bg.ratio), bg.ratio > 1 ? 'over sm' : (bg.ratio > .8 ? 'warn sm' : 'sm'));
     } else {
@@ -288,6 +291,10 @@
         short(bg.leftAfterFixed) + '원</div>';
     }
 
+    if (S.state.members.length > 1 && bg.sharedUsed > 0) {
+      h += '<div class="hint">공동 지출 ' + short(bg.sharedUsed) + '원은 용돈에서 빠지지 않아요</div>';
+    }
+
     var mem = C.byMember(ym, ymEnd);
     if (mem.length > 1) {
       h += '<div class="gap"></div><div class="row wrap tiny">' + mem.map(function (x) {
@@ -298,7 +305,7 @@
 
     h += '</div>';
 
-    var recent = S.state.tx.slice(0, 5);
+    var recent = S.viewTx().slice(0, 5);
     h += '<div class="card"><div class="card-h"><h2>최근 내역</h2>' +
       '<button class="btn sm" data-act="nav:ledger">전체보기</button></div>';
     h += recent.length ? recent.map(txRow).join('')
@@ -349,7 +356,7 @@
 
   /* 날짜별로 묶은 내역 목록 */
   function groupedTx(from, to) {
-    var list = S.state.tx.filter(function (t) { return t.date >= from && t.date <= to; });
+    var list = S.viewTx().filter(function (t) { return t.date >= from && t.date <= to; });
     if (!list.length) return '';
     var byDate = {};
     list.forEach(function (t) { (byDate[t.date] = byDate[t.date] || []).push(t); });
@@ -486,7 +493,17 @@
   function viewLedger() {
     var which = subOf('ledger');
     var inner = which === 'stats' ? viewStats() : viewCalendar();
-    return { html: subTabs('ledger') + inner.html, after: inner.after };
+    return { html: subTabs('ledger') + whoFilter() + inner.html, after: inner.after };
+  }
+
+  /* 둘이 쓸 때 : 전체 / 나 / 상대 / 공동 */
+  function whoFilter() {
+    if (S.state.members.length < 2) return '';
+    var other = S.state.members.find(function (m) { return m.id !== S.state.me; });
+    var opts = [['all', '전체'], ['me', '나'], ['other', other ? mname(other) : '상대'], ['shared', '공동']];
+    return '<div class="chips" style="margin-bottom:10px">' + opts.map(function (o) {
+      return '<button class="chip ' + (UI.who === o[0] ? 'on' : '') + '" data-act="who:set" data-w="' + o[0] + '">' + esc(o[1]) + '</button>';
+    }).join('') + '</div>';
   }
 
   /* ---------- 통계 ---------- */
@@ -818,8 +835,8 @@
           ? C.kor(pend('set', 'annualIncome', st.annualIncome)) + ' · DSR·정책자금 요건 계산에 사용'
           : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
         '<div class="g2">' +
-        '<div class="field"><label>기본 용돈 (매달 기본값)</label>' +
-        money('기본 용돈', pend('set', 'monthlyBudget', st.monthlyBudget), 'data-set="monthlyBudget"', '예) 500000') +
+        '<div class="field"><label>' + (S.state.members.length > 1 ? '내 기본 용돈' : '기본 용돈') + ' (매달 기본값)</label>' +
+        money('기본 용돈', pend('set', 'myBudget', S.baseBudget() || ''), 'data-set="myBudget"', '예) 500000') +
         '<div class="hint">달마다 다르게 쓰려면 홈에서 "용돈 수정"</div></div>' +
         '<div class="field"><label>월 저축액 직접 입력</label>' +
         money('월 저축액', pend('set', 'manualSaving', st.manualSaving), 'data-set="manualSaving"', '비워두면 자동') +
@@ -1078,11 +1095,24 @@
     }
 
     if (S.state.members.length > 1) {
+      var isShared = d.type === 'expense' && !!d.shared;
       h += '<div class="field"><label>누가</label><div class="chips">' +
         S.state.members.map(function (m) {
-          return '<button class="chip ' + (d.by === m.id ? 'on' : '') + '" data-act="sheet:by" data-b="' + m.id + '">' +
+          return '<button class="chip ' + (!isShared && d.by === m.id ? 'on' : '') + '" data-act="sheet:by" data-b="' + m.id + '">' +
             '<span class="mdot" style="background:' + m.color + '"></span>' + esc(mname(m)) + '</button>';
-        }).join('') + '</div></div>';
+        }).join('') +
+        (d.type === 'expense'
+          ? '<button class="chip ' + (isShared ? 'on' : '') + '" data-act="sheet:by" data-b="shared">공동</button>'
+          : '') +
+        '</div><div class="hint">' + (isShared ? '공동 지출은 누구 용돈에서도 빠지지 않아요'
+          : '개인 지출은 그 사람 용돈에서 빠져요') + '</div></div>';
+      /* 비공개는 내 개인 내역만 : 상대 화면에서는 내역·합계·통계 모두에서 빠진다 */
+      if (!isShared && d.by === S.state.me) {
+        h += '<label class="row tiny" style="gap:7px;cursor:pointer;margin:0 0 10px;' +
+          'border:var(--bw) solid var(--line);padding:9px 10px;background:var(--panel)">' +
+          '<input type="checkbox" id="txPrivate" ' + (d.private ? 'checked' : '') + ' style="width:auto;flex:none">' +
+          '<span>🔒 나만 보기<br><span class="muted">상대 화면에서는 이 내역이 보이지 않아요</span></span></label>';
+      }
     }
 
     h += '<div class="g2">' +
@@ -1109,6 +1139,8 @@
     if (amt) UI.draft.amount = Number(String(amt.value).replace(/[^\d]/g, '')) || 0;
     if (dt && dt.value) UI.draft.date = dt.value;
     if (memo) UI.draft.memo = memo.value.slice(0, 30);
+    var pv = document.getElementById('txPrivate');
+    if (pv) UI.draft.private = pv.checked;
   }
 
   function closeSheet() {
@@ -1163,6 +1195,7 @@
     clearTimeout(pendT);
     UI.pendingRender = null;
     var y = window.scrollY || document.documentElement.scrollTop || 0;
+    S.setTxFilter(UI.view === 'ledger' && S.state.members.length > 1 ? UI.who : 'all');
     var out = (VIEWS[UI.view] || viewHome)();
     var v = document.getElementById('view');
     v.innerHTML = out.html;

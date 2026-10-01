@@ -6,7 +6,7 @@
   var VERSION = 5;
   /* 배포 번호 : sw.js 의 CACHE 버전과 함께 올린다.
      원격 파일이 더 새 번호로 저장돼 있으면 이 기기는 옛 코드이므로 올리지 않고 새로고침한다. */
-  var BUILD = 36;
+  var BUILD = 37;
 
   var CATS = {
     expense: [
@@ -157,8 +157,6 @@
         assets: [],
         haveMode: 'both',
         annualIncome: 0,
-        monthlyBudget: 0,
-        budgets: {},
         manualSaving: 0,
         fixed: [],
         loan: defaultLoan(),
@@ -199,7 +197,17 @@
          (불러올 때마다 현재 시각을 넣으면 빈 목표가 원격 목표 사이에 끼어든다) */
       if (g.updatedAt == null) g.updatedAt = now();
     });
-    s.settings.budgets = s.settings.budgets || {};
+    /* 용돈은 사람별로 멤버 정보에 둔다 (각자 자기 것만 고치므로 동기화 충돌이 없다).
+       예전의 공용 용돈은 첫 번째 멤버(저장소를 만든 사람)의 용돈으로 옮긴다.
+       어느 기기에서 옮겨도 같은 결과가 나오도록 updatedAt 은 건드리지 않는다. */
+    var oldBase = Number(s.settings.monthlyBudget) || 0;
+    var oldMonths = s.settings.budgets || {};
+    if ((oldBase > 0 || Object.keys(oldMonths).length) && s.members[0].budget == null) {
+      s.members[0].budget = oldBase;
+      s.members[0].budgets = Object.assign({}, oldMonths);
+    }
+    delete s.settings.monthlyBudget;
+    delete s.settings.budgets;
     s.settings.fixed = Array.isArray(s.settings.fixed) ? s.settings.fixed : [];
     s.settings.assets = Array.isArray(s.settings.assets) ? s.settings.assets : [];
     s.settings.haveMode = s.settings.haveMode === 'assets' ? 'assets' : 'both';
@@ -604,18 +612,53 @@
     d = d || new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   }
-  function budgetFor(ym) {
-    var b = state.settings.budgets || {};
-    return b[ym] != null ? Number(b[ym]) : Number(state.settings.monthlyBudget) || 0;
+  /* 사람별 용돈 : 기본값(budget) + 달마다 따로 정한 값(budgets[ym]). mid 생략 시 나 */
+  function budgetFor(ym, mid) {
+    var m = member(mid || state.me);
+    var b = m.budgets || {};
+    return b[ym] != null ? Number(b[ym]) : Number(m.budget) || 0;
   }
-  function hasOwnBudget(ym) {
-    return (state.settings.budgets || {})[ym] != null;
+  function hasOwnBudget(ym, mid) {
+    return (member(mid || state.me).budgets || {})[ym] != null;
+  }
+  function baseBudget(mid) { return Number(member(mid || state.me).budget) || 0; }
+
+  /* 내 용돈만 고칠 수 있다 */
+  function myMemberObj() {
+    return state.members.find(function (m) { return m.id === state.me; });
   }
   function setBudget(ym, amount) {
-    if (!state.settings.budgets) state.settings.budgets = {};
-    if (amount === null) delete state.settings.budgets[ym];
-    else state.settings.budgets[ym] = Math.max(0, Math.round(Number(amount) || 0));
-    touchSettings();
+    var m = myMemberObj();
+    if (!m) return;
+    m.budgets = Object.assign({}, m.budgets);
+    if (amount === null) delete m.budgets[ym];
+    else m.budgets[ym] = Math.max(0, Math.round(Number(amount) || 0));
+    m.updatedAt = now();
+    save();
+  }
+  function setBaseBudget(amount) {
+    var m = myMemberObj();
+    if (!m) return;
+    m.budget = Math.max(0, Math.round(Number(amount) || 0));
+    m.updatedAt = now();
+    save();
+  }
+
+  /* ---- 보이는 내역 ----
+     비공개(private) 내역은 작성자에게만 보인다 (화면에서만 숨김 — 동기화 파일에는 그대로 있다).
+     가계부 필터 : all | me(내 개인) | other(상대 개인) | shared(공동) */
+  var txFilter = 'all';
+  function setTxFilter(f) { txFilter = f || 'all'; }
+  function visibleTx() {
+    var me = state.me;
+    return state.tx.filter(function (t) { return !t.private || t.by === me; });
+  }
+  function viewTx() {
+    var me = state.me, list = visibleTx();
+    if (txFilter === 'me') return list.filter(function (t) { return !t.shared && t.by === me; });
+    if (txFilter === 'other') return list.filter(function (t) { return !t.shared && t.by !== me; });
+    if (txFilter === 'shared') return list.filter(function (t) { return !!t.shared; });
+    return list;
   }
 
   /* ---- 보유 자산 ---- */
@@ -770,6 +813,9 @@
     catList: catList, cat: cat, theme: theme, method: method, product: product,
     applyProduct: applyProduct, loanCond: loanCond, defaultLoan: defaultLoan,
     monthKey: monthKey, budgetFor: budgetFor, hasOwnBudget: hasOwnBudget, setBudget: setBudget,
+    baseBudget: baseBudget, setBaseBudget: setBaseBudget,
+    setTxFilter: setTxFilter, visibleTx: visibleTx, viewTx: viewTx,
+    get txFilter() { return txFilter; },
     ASSET_TYPES: ASSET_TYPES, assetTypes: assetTypes, assetType: assetType,
     assetList: assetList, addAsset: addAsset, updateAsset: updateAsset, removeAsset: removeAsset,
     assetTotal: assetTotal, assetByType: assetByType,

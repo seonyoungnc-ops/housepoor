@@ -187,7 +187,7 @@
         var amt3 = digits(document.getElementById('bgAmount').value);
         var onlyThis = document.getElementById('bgOnly').checked;
         if (onlyThis) S.setBudget(ym, amt3);
-        else { S.state.settings.monthlyBudget = amt3; S.setBudget(ym, null); }
+        else { S.setBaseBudget(amt3); S.setBudget(ym, null); }
         document.getElementById('sheetWrap').hidden = true;
         UI.render();
         UI.toast(onlyThis ? ym + ' 용돈을 ' + C.fmt(amt3) + '원으로 정했어요' : '기본 용돈을 바꿨어요');
@@ -427,7 +427,14 @@
         UI.renderSheet();
         return;
       case 'sheet:cat': UI.readSheet(); UI.draft.cat = t.dataset.c; UI.renderSheet(); return;
-      case 'sheet:by': UI.readSheet(); UI.draft.by = t.dataset.b; UI.renderSheet(); return;
+      case 'sheet:by':
+        UI.readSheet();
+        /* 공동 : 작성자는 나로 두고 shared 표시만. 공동·남의 내역은 비공개로 둘 수 없다 */
+        if (t.dataset.b === 'shared') { UI.draft.shared = true; UI.draft.by = S.state.me; UI.draft.private = false; }
+        else { UI.draft.shared = false; UI.draft.by = t.dataset.b; if (t.dataset.b !== S.state.me) UI.draft.private = false; }
+        UI.renderSheet();
+        return;
+      case 'who:set': UI.who = t.dataset.w; UI.render(); return;
       case 'sheet:method': UI.readSheet(); UI.draft.method = t.dataset.pm; UI.renderSheet(); return;
       case 'sheet:quick': {
         UI.readSheet();
@@ -446,6 +453,9 @@
         UI.readSheet();
         var d = UI.draft;
         if (!d.amount) { UI.toast('금액을 입력해 주세요'); return; }
+        /* 공동은 지출에만, 비공개는 내 개인 내역에만 */
+        if (d.type !== 'expense') d.shared = false;
+        if (d.shared || d.by !== S.state.me) d.private = false;
         var before = C.progress(S.activeGoal()).ratio;
         if (UI.editing) { S.updateTx(UI.editing, d); UI.toast('수정했어요'); }
         else { S.addTx(d); UI.toast(UI.TYPE_META[d.type].name + ' ' + C.fmt(d.amount) + '원 기록 완료!'); }
@@ -586,6 +596,7 @@
       var field = k.slice(pre.length);
       var v = UI.edits[k];
       if (scope === 'loan') S.loanCond()[field] = v;
+      else if (scope === 'set' && field === 'myBudget') S.setBaseBudget(v);
       else if (scope === 'set' || scope === 'mode') S.state.settings[field] = v;
       else if (scope === 'mem') {
         var mm = S.state.members.find(function (x) { return x.id === field; });
