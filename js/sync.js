@@ -30,20 +30,28 @@
       encodeURIComponent(c.path || 'housepoor.json').replace(/%2F/g, '/');
   }
 
-  /* 붙여넣기 과정에서 섞이는 공백·제로폭·비가시 문자를 제거한다.
-     이게 남아 있으면 fetch 가 헤더를 만들다 TypeError 를 던진다. */
+  /* GitHub 토큰은 영문·숫자·밑줄만 쓴다.
+     붙여넣기 과정에서 섞이는 공백·NBSP·제로폭 문자 등은 모두 걷어낸다.
+     (헤더 값에 ASCII 밖 문자가 들어가면 fetch 가 TypeError 를 던진다) */
   function cleanToken(raw) {
-    /* 공백류 + NBSP + 제로폭 문자 + BOM */
-    return String(raw || '').replace(/[\s ​-‍⁠﻿]/g, '');
+    return String(raw || '').replace(/[^A-Za-z0-9_]/g, '');
+  }
+
+  /* 무엇이 걸러졌는지 코드포인트로 알려준다 (진단용) */
+  function tokenStripped(raw) {
+    var s = String(raw || ''), out = [];
+    for (var i = 0; i < s.length; i++) {
+      if (!/[A-Za-z0-9_]/.test(s[i])) {
+        out.push('U+' + s.charCodeAt(i).toString(16).toUpperCase());
+      }
+    }
+    return out;
   }
 
   function tokenIssue() {
     var t = cleanToken(cfg().token);
     if (!t) return '토큰이 비어 있어요';
-    /* HTTP 헤더에 넣을 수 있는 건 출력 가능한 ASCII 뿐 */
-    if (!/^[!-~]+$/.test(t)) {
-      return '토큰에 쓸 수 없는 문자가 섞여 있어요. 토큰 칸을 비우고 다시 붙여넣어 주세요';
-    }
+    if (t.length < 20) return '토큰이 너무 짧아요 (' + t.length + '자). 전체가 복사됐는지 확인해 주세요';
     if (!/^(github_pat_|ghp_|gho_|ghs_|ghu_)/.test(t)) {
       return '토큰 형식이 아니에요. github_pat_ 으로 시작하는 값을 넣어주세요';
     }
@@ -263,7 +271,9 @@
     var repo = String(cfg().repo || '').trim();
     var tok = cleanToken(cfg().token);
 
-    steps.push(['토큰 형식', tokenIssue() ? '✗ ' + tokenIssue() : '✓ ' + tok.length + '자']);
+    var strip = tokenStripped(cfg().token);
+    steps.push(['토큰 형식', tokenIssue() ? '✗ ' + tokenIssue() : '✓ ' + tok.length + '자' +
+      (strip.length ? ' (걸러낸 문자 ' + strip.length + '개: ' + strip.slice(0, 6).join(' ') + ')' : '')]);
 
     function probe(label, url, opt) {
       return fetch(url, opt).then(function (r) {
@@ -305,7 +315,8 @@
 
   global.Sync = {
     configured: configured, pull: pull, push: push,
-    run: run, test: test, diagnose: diagnose, cleanToken: cleanToken,
+    run: run, test: test, diagnose: diagnose,
+    cleanToken: cleanToken, tokenStripped: tokenStripped,
     schedule: schedule, setBadge: setBadge
   };
 })(window);

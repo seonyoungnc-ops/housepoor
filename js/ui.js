@@ -146,17 +146,17 @@
     h += '</div>';
 
     h += '<div class="card"><div class="card-h"><h2>대출·자금 계획</h2>' +
-      '<button class="btn sm" data-act="nav:settings">조건 수정</button></div>' +
+      '<button class="btn sm" data-act="nav:goals">조건 수정</button></div>' +
       '<div class="row wrap" style="margin-bottom:8px"><span class="tag big">' + esc(p.loan.product.name) + '</span>' +
-      '<span class="tag">금리 ' + S.state.settings.rate + '%</span>' +
-      '<span class="tag">' + S.state.settings.years + '년</span></div>';
+      '<span class="tag">금리 ' + p.loan.cond.rate + '%</span>' +
+      '<span class="tag">' + p.loan.cond.years + '년</span></div>';
 
     p.loan.warnings.forEach(function (w) {
       h += '<div class="warn-box">⚠ ' + esc(w) + '</div>';
     });
 
     h += '<div class="kv"><span>집값</span><b class="num">' + C.kor(p.loan.price) + '</b></div>' +
-      '<div class="kv"><span>취득세 등 부대비용 (' + S.state.settings.extraRate + '%)</span><b class="num">' + C.kor(p.loan.extra) + '</b></div>' +
+      '<div class="kv"><span>취득세 등 부대비용 (' + p.loan.cond.extraRate + '%)</span><b class="num">' + C.kor(p.loan.extra) + '</b></div>' +
       '<div class="kv"><span>필요 총액</span><b class="num">' + C.kor(p.loan.totalCost) + '</b></div>' +
       '<div class="kv"><span>받을 수 있는 대출 <span class="tag">' + esc(p.loan.capBy) + '</span></span><b class="num">' + C.kor(p.loan.amount) + '</b></div>' +
       '<div class="kv"><span>예상 월 상환액</span><b class="num">' + C.won(p.loan.monthlyPayment) + '</b></div>' +
@@ -171,7 +171,11 @@
       '<div><b class="num a inc">' + C.fmt(mo.income) + '</b><span>수입</span></div>' +
       '<div><b class="num a sav">' + C.fmt(mo.save) + '</b><span>저축</span></div>' +
       '</div>';
-    var bg = C.budget(ym, ymEnd);
+    var bg = C.budget(ym, ymEnd, S.monthKey(now));
+    h += '<div class="gap"></div><div class="row" style="justify-content:space-between">' +
+      '<span class="tiny muted">' + (now.getMonth() + 1) + '월 용돈' +
+      (bg.custom ? ' <span class="tag">이 달만</span>' : '') + '</span>' +
+      '<button class="btn sm" data-act="budget:edit">용돈 수정</button></div>';
     if (bg.limit > 0) {
       h += '<div class="gap"></div>' +
         '<div class="row tiny" style="justify-content:space-between">' +
@@ -179,11 +183,15 @@
         '<span class="' + (bg.left < 0 ? 'a exp' : '') + '">' +
         (bg.left >= 0 ? '남은 용돈 ' + C.fmt(bg.left) + '원' : C.fmt(-bg.left) + '원 초과') + '</span></div>' +
         pbar(Math.min(1, bg.ratio), bg.ratio > 1 ? 'over sm' : (bg.ratio > .8 ? 'warn sm' : 'sm')) +
-        '<div class="hint">' + Math.round(bg.ratio * 100) + '% 사용 · 현금·신용·체크 모두 용돈에서 차감돼요</div>' +
+        '<div class="hint">' + Math.round(bg.ratio * 100) + '% 사용 · 현금·신용·체크 모두 용돈에서 차감돼요' +
+        (bg.fixedLeft > 0 ? '<br>남은 고정지출 ' + C.fmt(bg.fixedLeft) + '원을 빼면 <b>' +
+          C.fmt(bg.leftAfterFixed) + '원</b>' : '') + '</div>' +
         '<div class="row wrap tiny" style="margin-top:6px">' +
         bg.byMethod.map(function (x) {
           return '<span class="memchip">' + spr(x.method.spr) + esc(x.method.short) + ' ' + C.fmt(x.amount) + '원</span>';
         }).join('') + '</div>';
+    } else {
+      h += '<div class="hint">용돈을 설정하면 남은 금액과 사용률을 보여드려요</div>';
     }
     var mem = C.byMember(ym, ymEnd);
     if (mem.length > 1) {
@@ -406,8 +414,36 @@
             ' class="' + (g.theme === t.id ? 'on' : '') + '" style="background:' + t.body + '"></button>';
         }).join('') + '</div></div>';
 
+      var L = S.goalLoan(g);
+      var prod = S.product(L.product);
       h += '<div class="divider"></div>' +
-        '<div class="kv"><span>받을 수 있는 대출</span><b class="num">' + C.kor(p.loan.amount) + '</b></div>' +
+        '<div class="card-h"><h2>이 집의 대출 조건</h2></div>' +
+        '<div class="chips" style="margin-bottom:8px">' +
+        S.PRODUCTS.map(function (pr) {
+          return '<button class="chip ' + (L.product === pr.id ? 'on' : '') + '" data-act="goal:product" data-id="' + g.id + '" data-p="' + pr.id + '">' +
+            esc(pr.name) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="note-box">' + esc(prod.note) + '</div>';
+
+      p.loan.warnings.forEach(function (w) {
+        h += '<div class="warn-box">⚠ ' + esc(w) + '</div>';
+      });
+
+      h += '<div class="g3" style="margin-top:10px">' +
+        '<div class="field"><label>LTV (%)</label><input type="number" min="0" max="100" step="1" value="' + L.ltv + '" data-gloan="' + g.id + '" data-k="ltv"></div>' +
+        '<div class="field"><label>금리 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + L.rate + '" data-gloan="' + g.id + '" data-k="rate"></div>' +
+        '<div class="field"><label>기간 (년)</label><input type="number" min="1" max="50" step="1" value="' + L.years + '" data-gloan="' + g.id + '" data-k="years"></div>' +
+        '</div><div class="g2">' +
+        '<div class="field"><label>DSR (%) · 0이면 미적용</label><input type="number" min="0" max="100" step="1" value="' + L.dsr + '" data-gloan="' + g.id + '" data-k="dsr"></div>' +
+        '<div class="field"><label>부대비용 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + L.extraRate + '" data-gloan="' + g.id + '" data-k="extraRate"></div>' +
+        '</div>' +
+        '<div class="field"><label>상품 대출 한도 (비우면 제한 없음)</label>' +
+        money('대출 한도', L.maxLoan, 'data-gloan="' + g.id + '" data-k="maxLoan"', '제한 없음') +
+        '<div class="hint">' + (L.maxLoan ? C.kor(L.maxLoan) : '한도 제한 없음') + '</div></div>';
+
+      h += '<div class="divider"></div>' +
+        '<div class="kv"><span>받을 수 있는 대출 <span class="tag">' + esc(p.loan.capBy) + '</span></span><b class="num">' + C.kor(p.loan.amount) + '</b></div>' +
+        '<div class="kv"><span>예상 월 상환액</span><b class="num">' + C.won(p.loan.monthlyPayment) + '</b></div>' +
         '<div class="kv"><span>필요 자기자본</span><b class="num">' + C.kor(p.loan.needCash) + '</b></div>' +
         '<div class="kv"><span>남은 금액</span><b class="num">' + C.kor(p.short) + '</b></div>' +
         '<div class="kv"><span>달성 예상</span><b>' +
@@ -483,40 +519,39 @@
       '<div class="hint">' + (st.annualIncome ? C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용'
         : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
       '<div class="g2">' +
-      '<div class="field"><label>이번 달 용돈 (예산)</label>' + money('이번 달 용돈', st.monthlyBudget, 'data-set="monthlyBudget"', '예) 500000') +
-      '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) : '0원 · 설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
+      '<div class="field"><label>기본 용돈 (매달 기본값)</label>' + money('기본 용돈', st.monthlyBudget, 'data-set="monthlyBudget"', '예) 500000') +
+      '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) + ' · 달마다 다르게 쓰려면 홈에서 "용돈 수정"' : '설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
       '<div class="field"><label>월 저축액 직접 입력</label>' + money('월 저축액', st.manualSaving, 'data-set="manualSaving"', '비워두면 자동') +
       '<div class="hint">0이면 기록에서 자동 계산</div></div>' +
       '</div></div>';
 
-    /* 대출 상품 */
-    var prod = S.product(st.product);
-    h += '<div class="card"><div class="card-h"><h2>대출 상품</h2></div>' +
-      '<div class="chips" style="margin-bottom:10px">' +
-      S.PRODUCTS.map(function (p) {
-        return '<button class="chip ' + (st.product === p.id ? 'on' : '') + '" data-act="set:product" data-p="' + p.id + '">' +
-          esc(p.name) + '</button>';
-      }).join('') + '</div>' +
-      '<div class="note-box">' + esc(prod.note) + '</div>';
-
-    if (prod.priceCap > 0 || prod.incomeCap > 0) {
-      h += '<div class="row wrap tiny" style="margin:8px 0 2px">' +
-        (prod.priceCap ? '<span class="tag">주택가격 ' + C.kor(prod.priceCap) + ' 이하</span>' : '') +
-        (prod.incomeCap ? '<span class="tag">연소득 ' + C.kor(prod.incomeCap) + ' 이하</span>' : '') +
-        '</div>';
+    /* 고정지출 */
+    var fx = S.fixedList();
+    var fxTotal = S.fixedTotal();
+    var ymNow = S.monthKey();
+    var fxDone = S.fixedDone(ymNow);
+    h += '<div class="card"><div class="card-h"><h2>고정지출</h2>' +
+      '<button class="btn sm p" data-act="fx:add">+ 추가</button></div>';
+    if (!fx.length) {
+      h += '<div class="empty">차 할부·구독료·통신비처럼 매달 같은 금액으로 나가는 지출을 등록해 두세요</div>';
+    } else {
+      h += fx.map(function (f) {
+        var c = S.cat('expense', f.cat);
+        var on = !!fxDone[f.id];
+        return '<div class="fxrow" data-act="fx:edit" data-id="' + f.id + '">' +
+          spr(c.spr) +
+          '<div class="t"><b>' + esc(f.name || c.name) + '</b>' +
+          '<span>' + esc(c.name) + ' · 매월 ' + f.day + '일 · ' + esc(S.method(f.method).short) + '</span></div>' +
+          '<div class="a exp num">' + C.fmt(f.amount) + '</div>' +
+          '<span class="tag">' + (on ? '기록됨' : '대기') + '</span></div>';
+      }).join('');
+      h += '<div class="divider"></div>' +
+        '<div class="kv"><span>월 고정지출 합계</span><b class="num a exp">' + C.fmt(fxTotal) + '원</b></div>' +
+        '<button class="btn b block" data-act="fx:apply" style="margin-top:10px">' +
+        (ymNow.slice(5) * 1) + '월 고정지출 기록하기</button>' +
+        '<div class="hint">아직 기록되지 않은 항목만 추가됩니다. 중복 기록되지 않아요.</div>';
     }
-
-    h += '<div class="g3" style="margin-top:10px">' +
-      '<div class="field"><label>LTV (%)</label><input type="number" min="0" max="100" step="1" value="' + st.ltv + '" data-set="ltv"></div>' +
-      '<div class="field"><label>금리 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + st.rate + '" data-set="rate"></div>' +
-      '<div class="field"><label>기간 (년)</label><input type="number" min="1" max="50" step="1" value="' + st.years + '" data-set="years"></div>' +
-      '</div><div class="g2">' +
-      '<div class="field"><label>DSR (%) · 0이면 미적용</label><input type="number" min="0" max="100" step="1" value="' + st.dsr + '" data-set="dsr"></div>' +
-      '<div class="field"><label>부대비용 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + st.extraRate + '" data-set="extraRate"></div>' +
-      '</div>' +
-      '<div class="field"><label>상품 대출 한도 (비우면 제한 없음)</label>' + money('대출 한도', st.maxLoan, 'data-set="maxLoan"', '제한 없음') +
-      '<div class="hint">' + (st.maxLoan ? C.kor(st.maxLoan) : '한도 제한 없음') + '</div></div>' +
-      '<div class="hint">정책자금 조건은 공고에 따라 수시로 바뀝니다. 선택 후 실제 공고 기준으로 값을 직접 조정해서 쓰세요.</div></div>';
+    h += '</div>';
 
     h += '<div class="card"><div class="card-h"><h2>앱 · 데이터</h2></div>' +
       '<div class="row wrap" style="gap:8px">' +
@@ -531,7 +566,7 @@
       '<div class="hint">데이터는 이 기기의 브라우저에 저장되고, 동기화를 켜면 지정한 저장소에도 올라갑니다.</div></div>';
 
     h += '<div class="card"><div class="card-h"><h2>정보</h2></div>' +
-      '<div class="tiny muted">하우스푸어 v2.0<br>' +
+      '<div class="tiny muted">하우스푸어 v3.0<br>' +
       '폰트: JayeonSans (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
       '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div>' +
       (UI.errors && UI.errors.length

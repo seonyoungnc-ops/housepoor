@@ -104,10 +104,11 @@
   /* 대출 한도 계산 : LTV · DSR · 상품 한도 중 가장 낮은 값 */
   function loan(goal) {
     var st = Store.state.settings;
-    var prod = Store.product(st.product);
+    var L = Store.goalLoan(goal);
+    var prod = Store.product(L.product);
     var price = Number(goal && goal.price) || 0;
-    var i = (Number(st.rate) || 0) / 100 / 12;
-    var n = Math.max(1, Math.round((Number(st.years) || 30) * 12));
+    var i = (Number(L.rate) || 0) / 100 / 12;
+    var n = Math.max(1, Math.round((Number(L.years) || 30) * 12));
     var f;
     if (i > 0) {
       var q = Math.pow(1 + i, n);
@@ -116,22 +117,22 @@
       f = 1 / n;
     }
 
-    var caps = [{ k: 'LTV ' + (Number(st.ltv) || 0) + '%', v: price * (Number(st.ltv) || 0) / 100 }];
-    var dsrPct = Number(st.dsr) || 0;
+    var caps = [{ k: 'LTV ' + (Number(L.ltv) || 0) + '%', v: price * (Number(L.ltv) || 0) / 100 }];
+    var dsrPct = Number(L.dsr) || 0;
     var dsrLimit = 0;
     if (dsrPct > 0) {
       var monthlyCap = (Number(st.annualIncome) || 0) * dsrPct / 100 / 12;
       dsrLimit = f > 0 ? monthlyCap / f : 0;
       caps.push({ k: 'DSR ' + dsrPct + '%', v: dsrLimit });
     }
-    var maxLoan = Number(st.maxLoan) || 0;
+    var maxLoan = Number(L.maxLoan) || 0;
     if (maxLoan > 0) caps.push({ k: '상품 한도', v: maxLoan });
 
     var best = caps[0];
     caps.forEach(function (c) { if (c.v < best.v) best = c; });
     var amount = Math.max(0, best.v);
 
-    var totalCost = price * (1 + (Number(st.extraRate) || 0) / 100);
+    var totalCost = price * (1 + (Number(L.extraRate) || 0) / 100);
     var needCash = Math.max(0, totalCost - amount);
 
     /* 자격 요건 체크 */
@@ -146,9 +147,10 @@
     return {
       price: price,
       product: prod,
+      cond: L,
       amount: Math.round(amount),
       monthlyPayment: Math.round(amount * f),
-      ltvLimit: Math.round(price * (Number(st.ltv) || 0) / 100),
+      ltvLimit: Math.round(price * (Number(L.ltv) || 0) / 100),
       dsrLimit: Math.round(dsrLimit),
       extra: Math.round(totalCost - price),
       totalCost: Math.round(totalCost),
@@ -247,15 +249,27 @@
     });
   }
 
-  /* 이번 달 용돈 현황 */
-  function budget(from, to) {
-    var limit = Number(Store.state.settings.monthlyBudget) || 0;
+  /* 해당 월 용돈 현황 (월별 지정값 > 기본값) */
+  function budget(from, to, ym) {
+    ym = ym || String(from || '').slice(0, 7);
+    var limit = Store.budgetFor(ym);
     var used = sums(from, to).expense;
+    var fixedPlan = Store.fixedTotal();
+    var done = Store.fixedDone(ym);
+    var fixedLeft = Store.fixedList().reduce(function (a, f) {
+      return a + (done[f.id] ? 0 : (Number(f.amount) || 0));
+    }, 0);
     return {
-      limit: limit, used: used,
+      ym: ym,
+      limit: limit,
+      custom: Store.hasOwnBudget(ym),
+      used: used,
       left: limit - used,
       ratio: limit > 0 ? used / limit : 0,
-      byMethod: byMethod(from, to)
+      byMethod: byMethod(from, to),
+      fixedPlan: fixedPlan,
+      fixedLeft: fixedLeft,
+      leftAfterFixed: limit - used - fixedLeft
     };
   }
 

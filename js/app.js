@@ -62,6 +62,17 @@
       return;
     }
 
+    /* 목표별 대출 조건 */
+    if (el.dataset.gloan) {
+      var gl = S.state.goals.find(function (x) { return x.id === el.dataset.gloan; });
+      if (!gl) return;
+      var L = S.goalLoan(gl);
+      L[el.dataset.k] = el.dataset.money === '1' ? digits(el.value) : Number(el.value);
+      S.touchGoal(gl);
+      Sync.schedule();
+      return;
+    }
+
     /* 멤버 이름 */
     if (el.dataset.mem) {
       var m = S.state.members.find(function (x) { return x.id === el.dataset.mem; });
@@ -94,7 +105,7 @@
     var el = e.target;
     if (el.id === 'importFile') { readImport(el); return; }
     if (el.dataset && el.dataset.sync === 'auto') { UI.render(); return; }
-    if (el.dataset && (el.dataset.gid || el.dataset.set)) UI.render();
+    if (el.dataset && (el.dataset.gid || el.dataset.gloan || el.dataset.set)) UI.render();
   });
 
   /* ---------- 클릭 ---------- */
@@ -146,6 +157,85 @@
           gs.floors = Pixel.clampFloors(gs.shape, gs.floors);
           S.touchGoal(gs); UI.render(); Sync.schedule();
         }
+        return;
+      }
+
+      case 'goal:product': {
+        var gp = S.state.goals.find(function (x) { return x.id === id; });
+        if (gp) {
+          var pr = S.applyProduct(gp, t.dataset.p);
+          UI.render();
+          UI.toast(pr.name + ' 조건을 적용했어요');
+          Sync.schedule();
+        }
+        return;
+      }
+
+      /* ---- 용돈 ---- */
+      case 'budget:edit': openBudgetSheet(); return;
+      case 'budget:save': {
+        var ym = document.getElementById('bgMonth').value;
+        var amt3 = digits(document.getElementById('bgAmount').value);
+        var onlyThis = document.getElementById('bgOnly').checked;
+        if (onlyThis) S.setBudget(ym, amt3);
+        else { S.state.settings.monthlyBudget = amt3; S.setBudget(ym, null); }
+        document.getElementById('sheetWrap').hidden = true;
+        UI.render();
+        UI.toast(onlyThis ? ym + ' 용돈을 ' + C.fmt(amt3) + '원으로 정했어요' : '기본 용돈을 바꿨어요');
+        Sync.schedule();
+        return;
+      }
+      case 'budget:clear': {
+        var ym2 = document.getElementById('bgMonth').value;
+        S.setBudget(ym2, null);
+        document.getElementById('sheetWrap').hidden = true;
+        UI.render();
+        UI.toast('기본 용돈을 따르도록 되돌렸어요');
+        Sync.schedule();
+        return;
+      }
+
+      /* ---- 고정지출 ---- */
+      case 'fx:add': openFixedSheet(null); return;
+      case 'fx:edit': openFixedSheet(id); return;
+      case 'fx:cat': readFixedSheet(); UI.fxDraft.cat = t.dataset.c; renderFixedSheet(); return;
+      case 'fx:method': readFixedSheet(); UI.fxDraft.method = t.dataset.pm; renderFixedSheet(); return;
+      case 'fx:save': {
+        readFixedSheet();
+        var f = UI.fxDraft;
+        if (!f.amount) { UI.toast('금액을 입력해 주세요'); return; }
+        if (f.id) S.updateFixed(f.id, f); else S.addFixed(f);
+        document.getElementById('sheetWrap').hidden = true;
+        UI.render();
+        UI.toast('고정지출을 저장했어요');
+        Sync.schedule();
+        return;
+      }
+      case 'fx:del': {
+        var fid = UI.fxDraft && UI.fxDraft.id;
+        S.removeFixed(fid);
+        document.getElementById('sheetWrap').hidden = true;
+        UI.render();
+        UI.toast('삭제했어요');
+        Sync.schedule();
+        return;
+      }
+      case 'fx:apply': {
+        var ymA = S.monthKey();
+        var done = S.fixedDone(ymA);
+        var added = 0;
+        S.fixedList().forEach(function (f2) {
+          if (done[f2.id]) return;
+          S.addTx({
+            type: 'expense', amount: f2.amount, cat: f2.cat, method: f2.method || 'cash',
+            date: ymA + '-' + String(f2.day).padStart(2, '0'),
+            memo: f2.name, fixedId: f2.id
+          });
+          added++;
+        });
+        UI.render();
+        UI.toast(added ? '고정지출 ' + added + '건을 기록했어요' : '이미 모두 기록돼 있어요');
+        if (added) Sync.schedule();
         return;
       }
 
@@ -300,6 +390,76 @@
     }
   });
 
+
+  /* ---------- 용돈 시트 ---------- */
+  function openBudgetSheet() {
+    var ym = S.monthKey();
+    var cur = S.budgetFor(ym);
+    var own = S.hasOwnBudget(ym);
+    var h = '<h3>용돈 설정<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+      '<div class="field"><label>대상 월</label>' +
+      '<input type="month" id="bgMonth" value="' + ym + '"></div>' +
+      '<div class="field"><label>금액 (원)</label>' +
+      '<input type="text" inputmode="numeric" data-money="1" id="bgAmount" value="' +
+      (cur ? C.fmt(cur) : '') + '" placeholder="예) 500000"></div>' +
+      '<label class="row tiny" style="gap:7px;cursor:pointer;margin:4px 0 12px;' +
+      'border:var(--bw) solid var(--line);padding:9px 10px;background:var(--panel)">' +
+      '<input type="checkbox" id="bgOnly" ' + (own ? 'checked' : '') + ' style="width:auto;flex:none">' +
+      '<span>이 달에만 적용<br><span class="muted">끄면 매달 기본 용돈으로 저장됩니다</span></span></label>' +
+      '<div class="row">' +
+      (own ? '<button class="btn" data-act="budget:clear">기본값으로</button>' : '') +
+      '<button class="btn p grow" data-act="budget:save" style="text-align:center">저장</button></div>' +
+      '<div class="hint">월을 바꾸면 그 달의 용돈을 따로 정할 수 있어요.</div>';
+    document.getElementById('sheet').innerHTML = h;
+    document.getElementById('sheetWrap').hidden = false;
+  }
+
+  /* ---------- 고정지출 시트 ---------- */
+  function openFixedSheet(id) {
+    var f = id ? S.fixedList().find(function (x) { return x.id === id; }) : null;
+    UI.fxDraft = f ? Object.assign({}, f)
+      : { name: '', amount: 0, cat: 'home', method: 'cash', day: 25 };
+    renderFixedSheet();
+  }
+
+  function renderFixedSheet() {
+    var f = UI.fxDraft;
+    var h = '<h3>' + (f.id ? '고정지출 수정' : '고정지출 추가') +
+      '<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+      '<div class="field"><label>이름</label>' +
+      '<input type="text" id="fxName" value="' + UI.esc(f.name) + '" maxlength="20" placeholder="예) 차 할부, 넷플릭스, 통신비"></div>' +
+      '<div class="field"><label>금액 (원)</label>' +
+      '<input type="text" inputmode="numeric" data-money="1" id="fxAmount" value="' +
+      (f.amount ? C.fmt(f.amount) : '') + '" placeholder="예) 350000"></div>' +
+      '<div class="field"><label>카테고리</label><div class="chips">' +
+      S.catList('expense').map(function (c) {
+        return '<button class="chip ' + (f.cat === c.id ? 'on' : '') + '" data-act="fx:cat" data-c="' + c.id + '">' +
+          Sprites.tag(c.spr) + UI.esc(c.name) + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="field"><label>결제수단</label><div class="chips">' +
+      S.METHODS.map(function (m) {
+        return '<button class="chip ' + (f.method === m.id ? 'on' : '') + '" data-act="fx:method" data-pm="' + m.id + '">' +
+          Sprites.tag(m.spr) + UI.esc(m.name) + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="field"><label>결제일 (매월)</label>' +
+      '<input type="number" id="fxDay" min="1" max="28" value="' + f.day + '"></div>' +
+      '<div class="row" style="margin-top:6px">' +
+      (f.id ? '<button class="btn r" data-act="fx:del">삭제</button>' : '') +
+      '<button class="btn p grow" data-act="fx:save" style="text-align:center">저장</button></div>';
+    var sheet = document.getElementById('sheet');
+    sheet.innerHTML = h;
+    Sprites.hydrate(sheet);
+    document.getElementById('sheetWrap').hidden = false;
+  }
+
+  function readFixedSheet() {
+    var n = document.getElementById('fxName');
+    var a = document.getElementById('fxAmount');
+    var d = document.getElementById('fxDay');
+    if (n) UI.fxDraft.name = n.value.slice(0, 20);
+    if (a) UI.fxDraft.amount = digits(a.value);
+    if (d) UI.fxDraft.day = Number(d.value) || 1;
+  }
 
   /* ---------- 초기화 시트 ---------- */
   function openResetSheet() {

@@ -3,7 +3,7 @@
   'use strict';
 
   var KEY = 'phb.v1';
-  var VERSION = 2;
+  var VERSION = 3;
 
   var CATS = {
     expense: [
@@ -88,6 +88,14 @@
     { id: 'debit', name: '체크카드', short: '체크', spr: 'cardd' }
   ];
 
+  function defaultLoan() {
+    var p = PRODUCTS[0];
+    return {
+      product: p.id, ltv: p.ltv, rate: p.rate, years: p.years,
+      dsr: p.dsr, maxLoan: p.maxLoan, extraRate: 3
+    };
+  }
+
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
@@ -108,7 +116,8 @@
       me: 'm1',
       goals: [{
         id: uid(), rank: 1, name: '', price: 0,
-        region: '', size: '', shape: 'tower', floors: 12, theme: 'brick', memo: '', updatedAt: t
+        region: '', size: '', shape: 'tower', floors: 12, theme: 'brick', memo: '',
+        loan: defaultLoan(), updatedAt: t
       }],
       activeGoal: null,
       tx: [],
@@ -118,14 +127,9 @@
         seed: 0,
         annualIncome: 0,
         monthlyBudget: 0,
+        budgets: {},
         manualSaving: 0,
-        product: 'normal',
-        ltv: 70,
-        rate: 4.0,
-        years: 30,
-        dsr: 40,
-        maxLoan: 0,
-        extraRate: 3,
+        fixed: [],
         updatedAt: t
       },
       theme: 'day',
@@ -149,10 +153,29 @@
     s.goalTomb = s.goalTomb || {};
 
     /* v1 → v2 : 형태/소유자/타임스탬프 보강 */
+    var old = p && p.settings ? p.settings : {};
     s.goals.forEach(function (g) {
       if (!g.shape) g.shape = 'tower';
       g.floors = global.Pixel ? Pixel.clampFloors(g.shape, g.floors) : (g.floors || 10);
+      /* v2 → v3 : 전역 대출 설정을 목표별로 옮긴다 */
+      if (!g.loan) {
+        var d = defaultLoan();
+        g.loan = {
+          product: old.product || d.product,
+          ltv: old.ltv != null ? old.ltv : d.ltv,
+          rate: old.rate != null ? old.rate : d.rate,
+          years: old.years != null ? old.years : d.years,
+          dsr: old.dsr != null ? old.dsr : d.dsr,
+          maxLoan: old.maxLoan != null ? old.maxLoan : d.maxLoan,
+          extraRate: old.extraRate != null ? old.extraRate : d.extraRate
+        };
+      }
       if (!g.updatedAt) g.updatedAt = now();
+    });
+    s.settings.budgets = s.settings.budgets || {};
+    s.settings.fixed = Array.isArray(s.settings.fixed) ? s.settings.fixed : [];
+    ['product', 'ltv', 'rate', 'years', 'dsr', 'maxLoan', 'extraRate'].forEach(function (k) {
+      delete s.settings[k];
     });
     s.tx.forEach(function (t) {
       if (!t.by) t.by = s.me;
@@ -224,10 +247,13 @@
     var used = state.goals.map(function (g) { return g.rank; });
     var rank = 1;
     while (used.indexOf(rank) >= 0) rank++;
+    var base = activeGoal();
     var g = {
       id: uid(), rank: rank, name: '', price: 0,
       region: '', size: '', shape: 'tower', floors: 12,
-      theme: THEMES[state.goals.length % THEMES.length].id, memo: '', updatedAt: now()
+      theme: THEMES[state.goals.length % THEMES.length].id, memo: '',
+      loan: base && base.loan ? Object.assign({}, base.loan) : defaultLoan(),
+      updatedAt: now()
     };
     state.goals.push(g);
     save();
@@ -367,18 +393,82 @@
   function product(id) {
     return PRODUCTS.find(function (p) { return p.id === id; }) || PRODUCTS[0];
   }
-  function applyProduct(id) {
+  function goalLoan(g) {
+    if (!g) return defaultLoan();
+    if (!g.loan) g.loan = defaultLoan();
+    return g.loan;
+  }
+
+  function applyProduct(g, id) {
     var p = product(id);
-    state.settings.product = id;
+    var L = goalLoan(g);
+    L.product = id;
     if (id !== 'custom') {
-      state.settings.rate = p.rate;
-      state.settings.years = p.years;
-      state.settings.ltv = p.ltv;
-      state.settings.dsr = p.dsr;
-      state.settings.maxLoan = p.maxLoan;
+      L.rate = p.rate;
+      L.years = p.years;
+      L.ltv = p.ltv;
+      L.dsr = p.dsr;
+      L.maxLoan = p.maxLoan;
     }
-    touchSettings();
+    touchGoal(g);
     return p;
+  }
+
+  /* ---- 월별 용돈 ---- */
+  function monthKey(d) {
+    d = d || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function budgetFor(ym) {
+    var b = state.settings.budgets || {};
+    return b[ym] != null ? Number(b[ym]) : Number(state.settings.monthlyBudget) || 0;
+  }
+  function hasOwnBudget(ym) {
+    return (state.settings.budgets || {})[ym] != null;
+  }
+  function setBudget(ym, amount) {
+    if (!state.settings.budgets) state.settings.budgets = {};
+    if (amount === null) delete state.settings.budgets[ym];
+    else state.settings.budgets[ym] = Math.max(0, Math.round(Number(amount) || 0));
+    touchSettings();
+  }
+
+  /* ---- 고정지출 ---- */
+  function fixedList() {
+    return Array.isArray(state.settings.fixed) ? state.settings.fixed : [];
+  }
+  function addFixed(item) {
+    if (!state.settings.fixed) state.settings.fixed = [];
+    item.id = item.id || uid();
+    item.amount = Math.round(Number(item.amount) || 0);
+    item.day = Math.min(28, Math.max(1, Math.round(Number(item.day) || 1)));
+    state.settings.fixed.push(item);
+    touchSettings();
+    return item;
+  }
+  function updateFixed(id, patch) {
+    var f = fixedList().find(function (x) { return x.id === id; });
+    if (!f) return null;
+    Object.assign(f, patch);
+    f.amount = Math.round(Number(f.amount) || 0);
+    f.day = Math.min(28, Math.max(1, Math.round(Number(f.day) || 1)));
+    touchSettings();
+    return f;
+  }
+  function removeFixed(id) {
+    state.settings.fixed = fixedList().filter(function (x) { return x.id !== id; });
+    touchSettings();
+  }
+  function fixedTotal() {
+    return fixedList().reduce(function (a, f) { return a + (Number(f.amount) || 0); }, 0);
+  }
+  /* 해당 월에 이미 기록된 고정지출 id 목록 */
+  function fixedDone(ym) {
+    var done = {};
+    state.tx.forEach(function (t) {
+      if (t.fixedId && t.date.slice(0, 7) === ym) done[t.fixedId] = t.id;
+    });
+    return done;
   }
 
   function exportJSON() { return JSON.stringify(state, null, 2); }
@@ -435,7 +525,11 @@
     activeGoal: activeGoal, touchGoal: touchGoal, touchSettings: touchSettings,
     addMember: addMember, removeMember: removeMember, member: member, meMember: meMember,
     sharedPayload: sharedPayload, mergeRemote: mergeRemote,
-    catList: catList, cat: cat, theme: theme, method: method, product: product, applyProduct: applyProduct,
+    catList: catList, cat: cat, theme: theme, method: method, product: product,
+    applyProduct: applyProduct, goalLoan: goalLoan, defaultLoan: defaultLoan,
+    monthKey: monthKey, budgetFor: budgetFor, hasOwnBudget: hasOwnBudget, setBudget: setBudget,
+    fixedList: fixedList, addFixed: addFixed, updateFixed: updateFixed, removeFixed: removeFixed,
+    fixedTotal: fixedTotal, fixedDone: fixedDone,
     exportJSON: exportJSON, importJSON: importJSON
   };
 })(window);
