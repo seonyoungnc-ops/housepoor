@@ -17,7 +17,8 @@
     statMode: 'month',
     editing: null,
     draft: null,
-    installEvt: null
+    installEvt: null,
+    errors: []
   };
 
   var TABS = [
@@ -57,7 +58,7 @@
     var c = S.cat(t.type, t.cat);
     var multi = S.state.members.length > 1;
     var who = multi ? dot(S.member(t.by)) + S.member(t.by).name + ' · ' : '';
-    var pay = t.type === 'expense' ? esc(S.method(t.method).short) + ' · ' : '';
+    var pay = (t.type === 'expense' && S.method) ? esc(S.method(t.method).short) + ' · ' : '';
     return '<div class="tx" data-act="tx:edit" data-id="' + t.id + '">' +
       spr(c.spr) +
       '<div class="t"><b>' + esc(t.memo || c.name) + '</b>' +
@@ -522,6 +523,7 @@
       (isStandalone() ? '설치됨 ✓' : (UI.installEvt ? '홈 화면에 설치' : '설치 방법 보기')) + '</button>' +
       '<button class="btn" data-act="set:export">백업 내보내기</button>' +
       '<button class="btn" data-act="set:import">백업 불러오기</button>' +
+      '<button class="btn" data-act="set:fresh">앱 새로 받기</button>' +
       '<button class="btn r" data-act="set:reset">초기화</button>' +
       '</div>' +
       '<input type="file" id="importFile" accept="application/json,.json" style="display:none">' +
@@ -530,7 +532,12 @@
     h += '<div class="card"><div class="card-h"><h2>정보</h2></div>' +
       '<div class="tiny muted">하우스푸어 v2.0<br>' +
       '폰트: Galmuri (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
-      '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div></div>';
+      '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div>' +
+      (UI.errors && UI.errors.length
+        ? '<div class="warn-box" style="margin-top:8px"><b>최근 오류</b><br>' +
+          UI.errors.slice(-3).map(esc).join('<br>') +
+          '<br><br>"앱 새로 받기"를 눌러 캐시를 비우면 대부분 해결됩니다.</div>'
+        : '') + '</div>';
 
     return { html: h };
   }
@@ -578,7 +585,7 @@
           spr(c.spr) + esc(c.name) + '</button>';
       }).join('') + '</div></div>';
 
-    if (d.type === 'expense') {
+    if (d.type === 'expense' && S.METHODS) {
       h += '<div class="field"><label>결제수단</label><div class="chips">' +
         S.METHODS.map(function (mm) {
           return '<button class="chip ' + (d.method === mm.id ? 'on' : '') + '" data-act="sheet:method" data-pm="' + mm.id + '">' +

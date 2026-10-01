@@ -251,6 +251,7 @@
         Sync.schedule();
         return;
       }
+      case 'set:fresh': freshReload(); return;
       case 'set:export': doExport(); return;
       case 'set:import': document.getElementById('importFile').click(); return;
       case 'set:reset': openResetSheet(); return;
@@ -341,6 +342,22 @@
     document.getElementById('sheetWrap').hidden = false;
   }
 
+  /* ---------- 캐시 비우고 다시 받기 ---------- */
+  function freshReload() {
+    UI.toast('앱을 새로 받는 중...');
+    var done = function () {
+      var u = location.origin + location.pathname + '?fresh=' + Date.now();
+      location.replace(u);
+    };
+    if (!('serviceWorker' in navigator)) return done();
+    navigator.serviceWorker.getRegistrations()
+      .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+      .then(function () { return caches.keys(); })
+      .then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })
+      .then(done)
+      .catch(done);
+  }
+
   /* ---------- 백업 ---------- */
   function doExport() {
     try {
@@ -375,7 +392,30 @@
     fr.readAsText(f);
   }
 
+  /* ---------- 오류 수집 ---------- */
+  function noteError(msg) {
+    msg = String(msg || '').slice(0, 160);
+    if (!msg) return;
+    UI.errors.push(msg);
+    if (UI.errors.length > 10) UI.errors.shift();
+    if (UI.toast) UI.toast('오류: ' + msg);
+  }
+  window.addEventListener('error', function (e) {
+    noteError((e.message || '') + (e.filename ? ' @' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    noteError(e.reason && (e.reason.message || e.reason));
+  });
+
   /* ---------- 부트 ---------- */
+  /* ?fresh= 로 들어오면 서비스워커·캐시를 한 번 비운다 */
+  if (/[?&]fresh=/.test(location.search) && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (rs) {
+      rs.forEach(function (r) { r.unregister(); });
+    });
+    caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+  }
+
   S.load();
   applyTheme();
   UI.calSel = S.todayISO();

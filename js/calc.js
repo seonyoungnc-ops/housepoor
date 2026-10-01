@@ -241,7 +241,8 @@
       if (to && t.date > to) continue;
       acc[t.method || 'cash'] = (acc[t.method || 'cash'] || 0) + t.amount;
     }
-    return Store.METHODS.map(function (m) {
+    var list = Store.METHODS || [{ id: 'cash', name: '현금', short: '현금', spr: 'coin' }];
+    return list.map(function (m) {
       return { method: m, amount: acc[m.id] || 0 };
     });
   }
