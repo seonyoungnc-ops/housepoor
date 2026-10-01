@@ -114,6 +114,9 @@
 
     if (p.eta && p.eta.done) {
       h += '<div class="bigmsg celebrate">🎉 자기자본 준비 완료!<br>지금 바로 <b>입주 가능</b>해요</div>';
+    } else if (p.eta && p.eta.tooLong) {
+      h += '<div class="bigmsg">지금 속도로는 <b>50년 이상</b> 걸려요<br>' +
+        '<span class="tiny">목표 금액을 낮추거나, 월 저축액을 늘리거나, 대출 조건을 다시 확인해 보세요</span></div>';
     } else if (p.eta) {
       h += '<div class="bigmsg">앞으로 <b>' + p.eta.monthsR + '개월</b> 더 모으면 입주 가능!<br>' +
         '<span class="tiny">= ' + C.fmt(p.eta.weeks) + '주 · ' + C.fmt(p.eta.days) + '일 · 예상 ' + p.eta.date + '</span></div>';
@@ -374,7 +377,8 @@
         '<div class="kv"><span>받을 수 있는 대출</span><b class="num">' + C.kor(p.loan.amount) + '</b></div>' +
         '<div class="kv"><span>필요 자기자본</span><b class="num">' + C.kor(p.loan.needCash) + '</b></div>' +
         '<div class="kv"><span>남은 금액</span><b class="num">' + C.kor(p.short) + '</b></div>' +
-        '<div class="kv"><span>달성 예상</span><b>' + (p.eta ? (p.eta.done ? '달성!' : p.eta.monthsR + '개월 후 (' + p.eta.date + ')') : '-') + '</b></div>' +
+        '<div class="kv"><span>달성 예상</span><b>' +
+        (p.eta ? (p.eta.done ? '달성!' : (p.eta.tooLong ? '50년 이상' : p.eta.monthsR + '개월 후 (' + p.eta.date + ')')) : '-') + '</b></div>' +
         '<div class="gap"></div>' + pbar(p.ratio, 'sm') +
         '<div class="hint">진행률 ' + Math.floor(p.ratio * 100) + '%</div>';
 

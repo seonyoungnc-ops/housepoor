@@ -170,15 +170,20 @@
       e = { done: true };
     } else if (pc.monthly > 0) {
       var months = short / pc.monthly;
-      var days = Math.ceil(months * MONTH_DAYS);
-      e = {
-        done: false,
-        months: months,
-        monthsR: Math.ceil(months),
-        weeks: Math.ceil(days / 7),
-        days: days,
-        date: iso(addDays(new Date(), days))
-      };
+      /* 50년을 넘으면 날짜 예측이 의미 없다 */
+      if (months > 600) {
+        e = { done: false, tooLong: true, monthsR: Math.ceil(months) };
+      } else {
+        var days = Math.ceil(months * MONTH_DAYS);
+        e = {
+          done: false,
+          months: months,
+          monthsR: Math.ceil(months),
+          weeks: Math.ceil(days / 7),
+          days: days,
+          date: iso(addDays(new Date(), days))
+        };
+      }
     }
     return {
       goal: goal, loan: L, have: h, short: short,
