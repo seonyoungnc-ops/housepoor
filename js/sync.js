@@ -59,16 +59,25 @@
     return null;
   }
 
+  /* 요청을 막을 정도로 확실한 문제만 반환한다.
+     길이는 GitHub 이 보장하는 값이 아니므로 검사하지 않는다(유효성은 API 가 판정). */
   function tokenIssue() {
     var t = cleanToken(cfg().token);
     if (!t) return '토큰이 비어 있어요';
+    if (t.length < 20) return '토큰이 너무 짧아요 (' + t.length + '자)';
+    if (!tokenPrefix(t)) return '토큰 형식이 아니에요. github_pat_ 으로 시작하는 값을 넣어주세요';
+    return null;
+  }
+
+  /* 참고용 안내 — 막지 않는다 */
+  function tokenNote() {
+    var t = cleanToken(cfg().token);
+    if (!t) return null;
     var pre = tokenPrefix(t);
-    if (!pre) return '토큰 형식이 아니에요. github_pat_ 으로 시작하는 값을 넣어주세요';
-    var want = TOKEN_LEN[pre];
-    if (t.length !== want) {
-      return '토큰이 ' + t.length + '자인데 ' + want + '자여야 해요. ' +
-        (t.length < want ? (want - t.length) + '자가 빠졌어요 — ' : '') +
-        'GitHub에서 복사 아이콘으로 전체를 다시 복사해 주세요';
+    if (!pre) return null;
+    var typical = TOKEN_LEN[pre];
+    if (t.length < typical) {
+      return '보통 ' + typical + '자인데 ' + t.length + '자예요. 연결이 안 되면 전체를 다시 복사해 보세요';
     }
     return null;
   }
@@ -346,7 +355,7 @@
 
   global.Sync = {
     configured: configured, pull: pull, push: push,
-    run: run, test: test, diagnose: diagnose, tokenIssue: tokenIssue,
+    run: run, test: test, diagnose: diagnose, tokenIssue: tokenIssue, tokenNote: tokenNote,
     cleanToken: cleanToken, tokenStripped: tokenStripped,
     schedule: schedule, setBadge: setBadge
   };

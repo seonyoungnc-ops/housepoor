@@ -787,8 +787,10 @@
         if (!sy.token) return '없음';
         var t = String(sy.token);
         var bad = Sync.tokenIssue && Sync.tokenIssue();
+        var note = !bad && Sync.tokenNote ? Sync.tokenNote() : null;
         return esc(t.slice(0, 11)) + '… <b>' + t.length + '자</b>' +
-          (bad ? ' <span class="a exp">← ' + esc(bad) + '</span>' : ' ✓');
+          (bad ? ' <span class="a exp">← ' + esc(bad) + '</span>'
+               : (note ? ' <span class="muted">(' + esc(note) + ')</span>' : ' ✓'));
       })() + '</div></div>' +
       '<div class="row wrap">' +
       '<button class="btn b" data-act="sync:now">지금 동기화</button>' +
