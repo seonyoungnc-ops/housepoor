@@ -496,3 +496,18 @@ textarea.masked{-webkit-text-security:disc;text-security:disc;color:var(--muted)
 .qrbox{background:#fff;border:var(--bw) solid var(--line, #3a3340);border-radius:8px;padding:8px;
   width:min(240px,100%);margin:0 auto}
 .qrbox svg{display:block;width:100%;height:auto}
+
+/* ---------- 모바일 입력 시트 보정 ----------
+   - 체크박스가 일반 input 의 padding·테두리·width 를 물려받아 크게 깨지던 문제
+   - iOS 날짜 입력이 고유 너비를 가져 2열 그리드를 밀어내던 문제
+   - 금액 입력(flex 아이템)이 좁은 화면에서 상자를 넘던 문제
+   - iOS 는 16px 미만 입력칸에 포커스하면 화면을 확대한다 */
+input[type=checkbox],input[type=radio]{width:18px;height:18px;padding:0;border:0;flex:none;margin:0;accent-color:var(--yellow-d,#e6b84f)}
+input[type=date],input[type=month]{-webkit-appearance:none;appearance:none;display:block;min-width:0;min-height:40px;text-align:left;line-height:1.2}
+input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-and-time-value{text-align:left}
+.g2>*,.g3>*{min-width:0}
+.amountbox input{flex:1;min-width:0;width:auto}
+.chip{white-space:nowrap}
+.sheet{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+@media (pointer:coarse){input,select,textarea{font-size:16px}.amountbox input{font-size:26px}}
+.sheet .g2 input{height:42px;min-height:0}

@@ -1020,7 +1020,7 @@
       '<div class="hint">데이터는 이 기기의 브라우저에 저장되고, 동기화를 켜면 지정한 저장소에도 올라갑니다.</div></div>';
 
     h += '<div class="card"><div class="card-h"><h2>정보</h2></div>' +
-      '<div class="tiny muted">하우스푸어 v5.0<br>' +
+      '<div class="tiny muted">하우스푸어 v5.0 · 빌드 ' + S.BUILD + '<br>' +
       '폰트: JayeonSans (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
       '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div>' +
       (UI.errors && UI.errors.length

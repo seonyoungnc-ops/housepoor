@@ -1,18 +1,18 @@
 /* 하우스푸어 : 오프라인 캐시 */
-var CACHE = 'housepoor-v37';
+var CACHE = 'housepoor-v38';
 var ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './css/style.css?v=37',
-  './js/sprites.js?v=37',
-  './js/store.js?v=37',
-  './js/calc.js?v=37',
-  './js/pixel.js?v=37',
-  './js/sync.js?v=37',
-  './js/qrcode.min.js?v=37',
-  './js/ui.js?v=37',
-  './js/app.js?v=37',
+  './css/style.css?v=38',
+  './js/sprites.js?v=38',
+  './js/store.js?v=38',
+  './js/calc.js?v=38',
+  './js/pixel.js?v=38',
+  './js/sync.js?v=38',
+  './js/qrcode.min.js?v=38',
+  './js/ui.js?v=38',
+  './js/app.js?v=38',
   './fonts/JayeonSans-Regular.woff2',
   './fonts/JayeonSans-Medium.woff2',
   './icons/icon.svg',
@@ -23,7 +23,8 @@ self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CACHE).then(function (c) {
       return Promise.all(ASSETS.map(function (u) {
-        return c.add(u).catch(function () { });
+        /* 설치 때도 HTTP 캐시를 거치지 않고 새로 받는다 */
+        return c.add(new Request(u, { cache: 'reload' })).catch(function () { });
       }));
     }).then(function () { return self.skipWaiting(); })
   );
@@ -56,10 +57,12 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  /* HTML : 네트워크 우선 (업데이트 반영) */
+  /* HTML : 네트워크 우선 (업데이트 반영)
+     GitHub Pages 가 HTML 에 max-age=600 을 붙이므로 브라우저 HTTP 캐시를 건너뛴다.
+     (안 그러면 배포 후 최대 10분간 옛 index.html → 옛 JS 를 계속 받는다) */
   if (req.mode === 'navigate' || (req.headers.get('accept') || '').indexOf('text/html') >= 0) {
     e.respondWith(
-      fetch(req).then(function (res) {
+      fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }).then(function (res) {
         var copy = res.clone();
         caches.open(CACHE).then(function (c) { c.put(req, copy); });
         return res;

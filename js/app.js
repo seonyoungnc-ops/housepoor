@@ -1129,12 +1129,21 @@
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (!hadController || reloading) return;
       reloading = true;
-      location.reload();
+      /* 내역을 입력하던 중이면 시트를 닫을 때까지 기다렸다가 새로고침 */
+      (function go() {
+        var wrap = document.getElementById('sheetWrap');
+        if ((wrap && !wrap.hidden) || UI.isTyping()) { setTimeout(go, 1500); return; }
+        location.reload();
+      })();
     });
 
-    navigator.serviceWorker.register('sw.js').then(function (reg) {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
       safeUpdate(reg);
       setInterval(function () { safeUpdate(reg); }, 60 * 60 * 1000);
+      /* 홈 화면 앱은 껐다 켜지 않고 다시 띄우는 경우가 많다 → 다시 보일 때마다 업데이트 확인 */
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) safeUpdate(reg);
+      });
     }).catch(function () { });
   }
 

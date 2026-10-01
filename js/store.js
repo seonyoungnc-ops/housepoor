@@ -6,7 +6,7 @@
   var VERSION = 5;
   /* 배포 번호 : sw.js 의 CACHE 버전과 함께 올린다.
      원격 파일이 더 새 번호로 저장돼 있으면 이 기기는 옛 코드이므로 올리지 않고 새로고침한다. */
-  var BUILD = 37;
+  var BUILD = 38;
 
   var CATS = {
     expense: [
