@@ -344,6 +344,20 @@
         : '') +
       '</div>';
 
+    /* 상대가 용돈을 공개했으면 함께 보여준다 */
+    var other = S.state.members.length > 1
+      ? S.state.members.find(function (m) { return m.id !== S.state.me; }) : null;
+    if (other && S.sharesBudget(other.id)) {
+      var ob = C.budget(ym, ymEnd, ymKey, other.id);
+      if (ob.limit > 0) {
+        h += '<div class="gap"></div><div class="row tiny" style="justify-content:space-between">' +
+          '<span>' + dot(other) + esc(mname(other)) + ' 용돈 ' + short(ob.limit) + '원</span>' +
+          '<span>' + Math.round(ob.ratio * 100) + '% 사용 · ' +
+          (ob.left >= 0 ? short(ob.left) + '원 남음' : short(-ob.left) + '원 초과') + '</span></div>' +
+          pbar(Math.min(1, ob.ratio), ob.ratio > 1 ? 'over sm' : (ob.ratio > .8 ? 'warn sm' : 'sm'));
+      }
+    }
+
     if (S.state.members.length > 1 && bg.sharedUsed > 0) {
       h += '<div class="hint">공동 지출 ' + short(bg.sharedUsed) + '원은 용돈에서 빠지지 않아요</div>';
     }
@@ -942,6 +956,11 @@
         '<div class="g2">' +
         '<div class="field"><label>' + (S.state.members.length > 1 ? '내 기본 용돈' : '기본 용돈') + ' (매달 기본값)</label>' +
         money('기본 용돈', pend('set', 'myBudget', S.baseBudget() || ''), 'data-set="myBudget"', '예) 500000') +
+        (S.state.members.length > 1
+          ? '<label class="row tiny" style="gap:7px;cursor:pointer;margin-top:6px">' +
+            '<input type="checkbox" data-act="budget:share"' + (S.sharesBudget() ? ' checked' : '') + '>' +
+            '<span>상대에게 내 용돈 보여주기</span></label>'
+          : '') +
         '<div class="hint">달마다 다르게 쓰려면 홈에서 "용돈 수정"</div></div>' +
         '<div class="field"><label>월 저축액 직접 입력</label>' +
         money('월 저축액', pend('set', 'manualSaving', st.manualSaving), 'data-set="manualSaving"', '비워두면 자동') +

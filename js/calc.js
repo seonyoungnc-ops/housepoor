@@ -278,10 +278,11 @@
 
   /* 해당 월 "내" 용돈 현황 (월별 지정값 > 기본값)
      내 개인 지출만 차감한다. 공동 지출은 누구 용돈에서도 빠지지 않는다. */
-  function budget(from, to, ym) {
+  function budget(from, to, ym, mid) {
     ym = ym || String(from || '').slice(0, 7);
-    var me = Store.state.me;
-    var limit = Store.budgetFor(ym);
+    /* mid : 누구의 용돈인지 (기본 나). 상대 것은 내 화면에 보이는 내역(나만 보기 제외)으로 계산 */
+    var me = mid || Store.state.me;
+    var limit = Store.budgetFor(ym, me);
     var vis = Store.visibleTx();
     var used = sums(from, to, vis.filter(function (t) { return t.by === me && !t.shared; })).expense;
     var sharedUsed = sums(from, to, vis.filter(function (t) { return !!t.shared; })).expense;
@@ -293,7 +294,7 @@
     return {
       ym: ym,
       limit: limit,
-      custom: Store.hasOwnBudget(ym),
+      custom: Store.hasOwnBudget(ym, me),
       used: used,
       sharedUsed: sharedUsed,
       left: limit - used,

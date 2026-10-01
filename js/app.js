@@ -435,6 +435,11 @@
         UI.renderSheet();
         return;
       case 'who:set': UI.who = t.dataset.w; UI.render(); return;
+      case 'budget:share':
+        S.setShareBudget(t.checked);
+        UI.toast(t.checked ? '상대 화면에 내 용돈이 보여요' : '내 용돈을 상대에게 숨겼어요');
+        Sync.schedule();
+        return;
       case 'goalmode:set': {
         var gm = t.dataset.m;
         if ((gm === 'saving') === !S.isHouse()) return;

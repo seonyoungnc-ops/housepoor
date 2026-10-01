@@ -6,7 +6,7 @@
   var VERSION = 5;
   /* 배포 번호 : sw.js 의 CACHE 버전과 함께 올린다.
      원격 파일이 더 새 번호로 저장돼 있으면 이 기기는 옛 코드이므로 올리지 않고 새로고침한다. */
-  var BUILD = 42;
+  var BUILD = 43;
 
   var CATS = {
     expense: [
@@ -674,6 +674,15 @@
     m.updatedAt = now();
     save();
   }
+  /* 내 용돈을 상대에게 보여줄지 (기본 : 숨김). 내 멤버 정보에 저장 → 각자 따로 정한다 */
+  function sharesBudget(mid) { return !!member(mid || state.me).shareBudget; }
+  function setShareBudget(on) {
+    var m = myMemberObj();
+    if (!m) return;
+    m.shareBudget = !!on;
+    m.updatedAt = now();
+    save();
+  }
   function setBaseBudget(amount) {
     var m = myMemberObj();
     if (!m) return;
@@ -853,6 +862,7 @@
     isHouse: isHouse, setGoalMode: setGoalMode,
     monthKey: monthKey, budgetFor: budgetFor, hasOwnBudget: hasOwnBudget, setBudget: setBudget,
     baseBudget: baseBudget, setBaseBudget: setBaseBudget,
+    sharesBudget: sharesBudget, setShareBudget: setShareBudget,
     setTxFilter: setTxFilter, visibleTx: visibleTx, viewTx: viewTx,
     get txFilter() { return txFilter; },
     ASSET_TYPES: ASSET_TYPES, assetTypes: assetTypes, assetType: assetType,
