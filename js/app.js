@@ -73,10 +73,10 @@
       return;
     }
 
-    /* 멤버 이름 */
+    /* 멤버 이름 — 보류 */
     if (el.dataset.mem) {
-      var m = S.state.members.find(function (x) { return x.id === el.dataset.mem; });
-      if (m) { m.name = el.value.slice(0, 10); m.updatedAt = S.now(); S.save(); Sync.schedule(); }
+      UI.edits['mem:' + el.dataset.mem] = el.value.slice(0, 10);
+      markDirty();
       return;
     }
 
@@ -109,7 +109,7 @@
   /* 저장바를 띄우기 위해 한 번만 다시 그린다 (입력 중이면 미뤄짐) */
   var dirtyT = null;
   function markDirty() {
-    if (document.querySelector('.savebar')) return;
+    if (document.querySelector('.saveact')) return;
     clearTimeout(dirtyT);
     dirtyT = setTimeout(function () { UI.render(); }, 250);
   }
@@ -209,10 +209,8 @@
       case 'as:edit': openAssetSheet(id); return;
       case 'as:type': readAssetSheet(); UI.asDraft.type = t.dataset.t; renderAssetSheet(); return;
       case 'as:mode':
-        S.state.settings.haveMode = t.dataset.m;
-        S.touchSettings();
+        UI.edits['mode:haveMode'] = t.dataset.m;
         UI.render();
-        Sync.schedule();
         return;
       case 'as:save': {
         readAssetSheet();
@@ -568,14 +566,19 @@
       var field = k.slice(pre.length);
       var v = UI.edits[k];
       if (scope === 'loan') S.loanCond()[field] = v;
-      else if (scope === 'set') S.state.settings[field] = v;
-      else if (goal) goal[field] = v;
+      else if (scope === 'set' || scope === 'mode') S.state.settings[field] = v;
+      else if (scope === 'mem') {
+        var mm = S.state.members.find(function (x) { return x.id === field; });
+        if (mm) { mm.name = v; mm.updatedAt = S.now(); }
+      } else if (goal) goal[field] = v;
       delete UI.edits[k];
     });
 
     if (goal) {
       goal.floors = Pixel.clampFloors(goal.shape, goal.floors);
       S.touchGoal(goal);
+    } else if (scope === 'mem') {
+      S.save();
     } else {
       S.touchSettings();
     }

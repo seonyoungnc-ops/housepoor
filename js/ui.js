@@ -665,23 +665,31 @@
       }
       h += '</div>';
 
-      h += '<div class="card"><div class="card-h"><h2>모은 돈 계산 방식</h2></div>' +
+      var vMode = pend('mode', 'haveMode', st.haveMode);
+      var aTotal = S.assetTotal();
+      var aGain = C.allSums().gain;
+      var previewHave = Math.max(0, vMode === 'assets' ? aTotal : aTotal + aGain);
+
+      h += '<div class="card' + dirtyCls('mode') + '"><div class="card-h"><h2>모은 돈 계산 방식</h2>' +
+        saveActions('mode') + '</div>' +
         '<div class="chips" style="margin-bottom:10px">' +
         [['both', '자산 + 가계부 저축'], ['assets', '자산 합계만']].map(function (x) {
-          return '<button class="chip ' + (st.haveMode === x[0] ? 'on' : '') +
+          return '<button class="chip ' + (vMode === x[0] ? 'on' : '') +
             '" data-act="as:mode" data-m="' + x[0] + '">' + x[1] + '</button>';
         }).join('') + '</div>' +
         '<div class="note-box">' +
-        (st.haveMode === 'assets'
+        (vMode === 'assets'
           ? '자산 합계만 사용합니다. 주식·펀드처럼 평가액이 바뀌는 자산을 직접 갱신하는 경우에 알맞아요.'
           : '자산 합계에 가계부로 모은 순저축을 더합니다. 자산은 <b>기록 시작 시점</b> 금액으로 두세요. 자산 금액을 계속 최신화하면 저축이 이중으로 잡힙니다.') +
         '</div>' +
         '<div class="gap"></div>' +
-        '<div class="kv"><span>보유 자산</span><b class="num">' + C.kor(S.assetTotal()) + '</b></div>' +
-        (st.haveMode === 'both'
-          ? '<div class="kv"><span>가계부 순저축</span><b class="num">' + C.kor(C.allSums().gain) + '</b></div>'
+        '<div class="kv"><span>보유 자산</span><b class="num">' + C.kor(aTotal) + '</b></div>' +
+        (vMode === 'both'
+          ? '<div class="kv"><span>가계부 순저축</span><b class="num">' + C.kor(aGain) + '</b></div>'
           : '') +
-        '<div class="kv"><span><b>모은 돈</b></span><b class="num">' + C.kor(C.have()) + '</b></div></div>';
+        '<div class="kv"><span><b>모은 돈</b>' +
+        (dirty('mode') ? ' <span class="tag">저장 전 미리보기</span>' : '') +
+        '</span><b class="num">' + C.kor(previewHave) + '</b></div></div>';
 
       h += '<div class="card' + dirtyCls('set') + '"><div class="card-h"><h2>소득 · 용돈</h2>' +
         saveActions('set') + '</div>' +
@@ -791,13 +799,14 @@
     var h = '';
 
     /* 멤버 */
-    h += '<div class="card"><div class="card-h"><h2>함께 쓰는 사람</h2>' +
-      (S.state.members.length < 2 ? '<button class="btn sm p" data-act="mem:add">+ 추가</button>' : '<span class="tag">최대 2명</span>') +
+    h += '<div class="card' + dirtyCls('mem') + '"><div class="card-h"><h2>함께 쓰는 사람</h2>' +
+      (dirty('mem') ? saveActions('mem')
+        : (S.state.members.length < 2 ? '<button class="btn sm p" data-act="mem:add">+ 추가</button>' : '<span class="tag">최대 2명</span>')) +
       '</div>';
     S.state.members.forEach(function (m) {
       h += '<div class="memrow">' +
         '<span class="mdot big" style="background:' + m.color + '"></span>' +
-        '<input type="text" class="grow" data-mem="' + m.id + '" value="' + esc(m.name) + '" maxlength="10">' +
+        '<input type="text" class="grow" data-mem="' + m.id + '" value="' + esc(pend('mem', m.id, m.name)) + '" maxlength="10">' +
         '<button class="btn sm ' + (S.state.me === m.id ? 'p' : '') + '" data-act="mem:me" data-id="' + m.id + '">' +
         (S.state.me === m.id ? '이게 나' : '나로 지정') + '</button>' +
         (S.state.members.length > 1 ? '<button class="btn sm r" data-act="mem:del" data-id="' + m.id + '">삭제</button>' : '') +
