@@ -144,13 +144,7 @@
         if (res.status === 401) {
           throw new Error('토큰 값이 잘못됐어요. 복사가 끊기지 않았는지 확인해 주세요 (401)');
         }
-        if (res.status === 404) return whoAmI().then(function (who) {
-          var owner = repo.split('/')[0];
-          if (who && who.toLowerCase() !== owner.toLowerCase()) {
-            throw new Error('토큰 주인은 ' + who + '인데 저장소는 ' + owner + ' 소유예요');
-          }
-          throw new Error('토큰에 ' + repo + ' 권한이 없어요. Repository access에 이 저장소를 추가하세요 (404)');
-        });
+        if (res.status === 404) return diagnose404(repo);
         throw new Error(msg(res));
       })
       .then(function (j) {
@@ -167,11 +161,43 @@
       .catch(function (e) { UI.toast(e.message || '연결 실패'); });
   }
 
-  /* 보조 진단용. 실패해도 무시한다 (fine-grained 토큰은 막혀 있을 수 있음) */
+  /* 404는 원인이 여러 가지다. 토큰이 실제로 무엇을 볼 수 있는지 조회해 범인을 특정한다. */
+  function diagnose404(repo) {
+    var owner = repo.split('/')[0];
+    return whoAmI().then(function (who) {
+      if (who && who.toLowerCase() !== owner.toLowerCase()) {
+        throw new Error('토큰 주인은 ' + who + '인데 저장소는 ' + owner + ' 소유예요');
+      }
+      return visibleRepos().then(function (list) {
+        if (!list) {
+          throw new Error('토큰에 ' + repo + ' 권한이 없어요 (404)');
+        }
+        var priv = list.filter(function (r) { return r.private; });
+        if (!priv.length) {
+          throw new Error('토큰이 비공개 저장소를 하나도 못 봐요. Repository access를 "Only select repositories"로 바꾸고 ' +
+            repo.split('/')[1] + ' 를 선택하세요');
+        }
+        var names = priv.map(function (r) { return r.full_name; });
+        if (names.indexOf(repo) < 0) {
+          throw new Error('토큰이 보는 비공개 저장소: ' + names.slice(0, 3).join(', ') +
+            ' — 여기에 ' + repo + ' 를 추가하세요');
+        }
+        throw new Error(repo + ' 는 보이는데 접근이 막혔어요. Contents 권한을 Read and write 로 바꾸세요');
+      });
+    });
+  }
+
   function whoAmI() {
     return fetch(API + '/user', { headers: headers(), cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (u) { return u && u.login; })
+      .catch(function () { return null; });
+  }
+
+  function visibleRepos() {
+    return fetch(API + '/user/repos?per_page=100&affiliation=owner', { headers: headers(), cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return Array.isArray(j) ? j : null; })
       .catch(function () { return null; });
   }
 
