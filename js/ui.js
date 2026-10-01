@@ -44,9 +44,18 @@
     goals: [{ id: 'list', name: '목표 아파트' }, { id: 'loan', name: '대출 조건' }]
   };
 
+  function subList(view) {
+    if (view === 'goals') {
+      return S.isHouse()
+        ? [{ id: 'list', name: '목표 아파트' }, { id: 'loan', name: '대출 조건' }]
+        : [{ id: 'list', name: '목표 저축' }];
+    }
+    return SUBS[view];
+  }
+
   function subTabs(view) {
-    var list = SUBS[view];
-    if (!list) return '';
+    var list = subList(view);
+    if (!list || list.length < 2) return '';
     var cur = UI.sub[view] || list[0].id;
     return '<div class="subtabs">' + list.map(function (t) {
       return '<button class="' + (cur === t.id ? 'on' : '') + '" data-act="sub:' + view + '" data-s="' + t.id + '">' +
@@ -55,7 +64,7 @@
   }
 
   function subOf(view) {
-    var list = SUBS[view];
+    var list = subList(view);
     return (UI.sub[view] && list.some(function (t) { return t.id === UI.sub[view]; }))
       ? UI.sub[view] : list[0].id;
   }
@@ -182,11 +191,23 @@
       h += '</div>';
     }
 
-    h += '<div class="hero">' + heroCanvas('heroCanvas') +
-      '<div class="rankbadge">' + g.rank + '위</div>' +
-      '<div class="nameplate">' + esc(g.name || '이름을 지어주세요') + '</div>' +
-      '<div class="shapetag">' + esc(Pixel.shape(g.shape).name) + ' · ' + Pixel.clampFloors(g.shape, g.floors) + '층</div>' +
-      '</div>';
+    var house = S.isHouse();
+    if (house) {
+      h += '<div class="hero">' + heroCanvas('heroCanvas') +
+        '<div class="rankbadge">' + g.rank + '위</div>' +
+        '<div class="nameplate">' + esc(g.name || '이름을 지어주세요') + '</div>' +
+        '<div class="shapetag">' + esc(Pixel.shape(g.shape).name) + ' · ' + Pixel.clampFloors(g.shape, g.floors) + '층</div>' +
+        '</div>';
+    } else {
+      /* 목표 저축 : 건물 대신 저금통과 진행률 */
+      h += '<div class="hero savehero">' +
+        '<div class="rankbadge">' + g.rank + '위</div>' +
+        spr('piggy', 'bigspr') +
+        '<b class="num savepct">' + (p.noPrice ? '-' : Math.floor(p.ratio * 100) + '%') + '</b>' +
+        '<div class="savebar">' + pbar(p.ratio, p.ratio >= 1 ? '' : 'sm') + '</div>' +
+        '<div class="nameplate">' + esc(g.name || '목표 이름을 지어주세요') + '</div>' +
+        '</div>';
+    }
 
     var ymKey = S.monthKey(now);
     var bg = C.budget(ym, ymEnd, ymKey);
@@ -197,9 +218,16 @@
 
     /* ---- 1. 자금 계획 ---- */
     h += '<div class="card hcard"><div class="card-h"><h2>자금 계획</h2>' +
-      '<span class="tiny muted">' + g.rank + '위 · ' + esc(g.name || '이름 없는 집') + '</span></div>';
+      '<span class="tiny muted">' + g.rank + '위 · ' + esc(g.name || (house ? '이름 없는 집' : '이름 없는 목표')) + '</span></div>';
 
-    if (p.noPrice) {
+    if (!p.noPrice && !house) {
+      h += '<div class="kv"><span>목표 금액</span><b class="num">' + C.kor(p.loan.price) + '</b></div>' +
+        '<div class="kv"><span>현재 모은 돈</span><b class="num">' + C.kor(p.have) + '</b></div>' +
+        '<div class="kv"><span>남은 금액</span><b class="num hi">' + C.kor(p.short) + '</b></div>' +
+        '<div class="gap"></div>' + pbar(p.ratio, p.ratio >= 1 ? '' : (p.ratio < .3 ? 'warn sm' : 'sm')) +
+        '<div class="hint">진행률 ' + Math.floor(p.ratio * 100) + '%' +
+        (p.eta && !p.eta.done ? ' · ' + (p.eta.tooLong ? '50년 이상' : p.eta.monthsR + '개월 후 달성 예상') : '') + '</div>';
+    } else if (p.noPrice) {
       h += '<div class="empty">목표 금액을 정하면 계산이 시작돼요</div>' +
         '<button class="btn p block" data-act="nav:goals">목표 설정하러 가기</button>';
     } else {
@@ -250,12 +278,12 @@
         var saved = (p.eta && !p.eta.tooLong) ? p.eta.monthsR - faster.monthsR : 0;
         h += '<span class="tiny">매달 ' + short(UI.paceExtra) + '원씩 더 저축하면</span>' +
           '<b>' + (saved > 0 ? saved + '개월 빨리 · ' : '') +
-          (faster.tooLong ? '50년 이상' : faster.date.slice(0, 4) + '년 ' + (faster.date.slice(5, 7) * 1) + '월 입주') + '</b>';
+          (faster.tooLong ? '50년 이상' : faster.date.slice(0, 4) + '년 ' + (faster.date.slice(5, 7) * 1) + '월 ' + (house ? '입주' : '달성')) + '</b>';
       }
       h += '</div>';
     } else if (p.short <= 0 && !p.noPrice) {
-      h += '<div class="gap"></div><div class="simbox"><b>🎉 자기자본 준비 완료!</b>' +
-        '<span class="tiny">지금 바로 입주 가능해요</span></div>';
+      h += '<div class="gap"></div><div class="simbox"><b>' + (house ? '🎉 자기자본 준비 완료!' : '🎉 목표 달성!') + '</b>' +
+        '<span class="tiny">' + (house ? '지금 바로 입주 가능해요' : '목표 금액을 모두 모았어요') + '</span></div>';
     }
     h += '</div>';
 
@@ -314,7 +342,7 @@
 
     return {
       html: h,
-      after: function () { paintBuilding(document.getElementById('heroCanvas'), g, p.ratio, isNight()); }
+      after: function () { if (house) paintBuilding(document.getElementById('heroCanvas'), g, p.ratio, isNight()); }
     };
   }
 
@@ -660,7 +688,7 @@
   /* ---------- 목표 : 목표 아파트 / 대출 조건 ---------- */
   function viewGoalsTab() {
     var which = subOf('goals');
-    var inner = which === 'loan' ? viewLoanCond() : viewGoalList();
+    var inner = which === 'loan' && S.isHouse() ? viewLoanCond() : (S.isHouse() ? viewGoalList() : viewSaveGoalList());
     return { html: subTabs('goals') + inner.html, after: inner.after };
   }
 
@@ -762,6 +790,52 @@
     };
   }
 
+  /* 목표 저축 : 이름 · 금액 · 메모만 */
+  function viewSaveGoalList() {
+    var goals = S.goalsSorted();
+    var h = '<div class="card"><div class="card-h"><h2>목표 저축</h2>' +
+      (goals.length < 3 ? '<button class="btn sm p" data-act="goal:add">+ 목표 추가</button>' : '<span class="tag">최대 3개</span>') +
+      '</div><div class="tiny muted">모으고 싶은 금액을 1~3위까지 등록할 수 있어요. 집 마련으로 바꾸려면 설정 → 목표 방식.</div></div>';
+
+    h += '<div class="goalgrid cols' + goals.length + '">';
+    goals.forEach(function (g, idx) {
+      var p = C.progress(g);
+      var scope = 'g:' + g.id;
+      var vName = pend(scope, 'name', g.name);
+      var vPrice = pend(scope, 'price', g.price);
+      var vMemo = pend(scope, 'memo', g.memo);
+
+      h += '<div class="goalcard' + dirtyCls(scope) + '"><div class="gh">' +
+        '<span class="rk">' + g.rank + '위</span>' +
+        '<span class="nm">' + esc(vName || '(이름 없음)') + '</span>' +
+        (dirty(scope)
+          ? saveActions(scope)
+          : '<button class="btn sm" data-act="goal:up" data-id="' + g.id + '"' + (idx === 0 ? ' disabled' : '') + '>▲</button>' +
+            '<button class="btn sm" data-act="goal:down" data-id="' + g.id + '"' + (idx === goals.length - 1 ? ' disabled' : '') + '>▼</button>' +
+            (goals.length > 1 ? '<button class="btn sm r" data-act="goal:del" data-id="' + g.id + '">삭제</button>' : '')) +
+        '</div><div class="gb">';
+
+      h += '<div class="field"><label>목표 이름</label>' +
+        '<input type="text" data-gid="' + g.id + '" data-k="name" value="' + esc(vName) + '" maxlength="20" placeholder="예) 비상금, 여행 자금"></div>' +
+        '<div class="field"><label>목표 금액 (원)</label>' +
+        money('목표 금액', vPrice, 'data-gid="' + g.id + '" data-k="price"', '예) 10000000') +
+        '<div class="hint">' + (vPrice ? C.kor(vPrice) : '모으고 싶은 금액을 입력해 주세요') + '</div></div>' +
+        '<div class="field"><label>메모</label>' +
+        '<input type="text" data-gid="' + g.id + '" data-k="memo" value="' + esc(vMemo || '') + '" maxlength="40" placeholder="선택 입력"></div>';
+
+      h += '<div class="divider"></div>' +
+        '<div class="kv"><span>현재 모은 돈</span><b class="num">' + C.kor(p.have) + '</b></div>' +
+        '<div class="kv"><span>남은 금액</span><b class="num">' + C.kor(p.short) + '</b></div>' +
+        '<div class="kv"><span>달성 예상</span><b>' +
+        (p.eta ? (p.eta.done ? '달성!' : (p.eta.tooLong ? '50년 이상' : p.eta.monthsR + '개월 후 (' + p.eta.date + ')')) : '-') + '</b></div>' +
+        '<div class="gap"></div>' + pbar(p.ratio, 'sm') +
+        '<div class="hint">진행률 ' + Math.floor(p.ratio * 100) + '%</div>';
+      h += '</div></div>';
+    });
+    h += '</div>';
+    return { html: h };
+  }
+
   /* ---------- 자산 : 내 자산 / 고정지출 ---------- */
   function viewMoney() {
     var which = subOf('money');
@@ -827,13 +901,16 @@
         (dirty('mode') ? ' <span class="tag">저장 전 미리보기</span>' : '') +
         '</span><b class="num">' + C.kor(previewHave) + '</b></div></div>';
 
-      h += '<div class="card' + dirtyCls('set') + '"><div class="card-h"><h2>소득 · 용돈</h2>' +
+      /* 연소득은 대출(DSR·정책자금) 계산에만 쓰이므로 목표 저축에서는 숨긴다 */
+      h += '<div class="card' + dirtyCls('set') + '"><div class="card-h"><h2>' + (S.isHouse() ? '소득 · 용돈' : '용돈 · 저축') + '</h2>' +
         saveActions('set') + '</div>' +
-        '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
-        money('연소득', pend('set', 'annualIncome', st.annualIncome), 'data-set="annualIncome"', '예) 60000000') +
-        '<div class="hint">' + (pend('set', 'annualIncome', st.annualIncome)
-          ? C.kor(pend('set', 'annualIncome', st.annualIncome)) + ' · DSR·정책자금 요건 계산에 사용'
-          : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
+        (S.isHouse()
+          ? '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
+            money('연소득', pend('set', 'annualIncome', st.annualIncome), 'data-set="annualIncome"', '예) 60000000') +
+            '<div class="hint">' + (pend('set', 'annualIncome', st.annualIncome)
+              ? C.kor(pend('set', 'annualIncome', st.annualIncome)) + ' · DSR·정책자금 요건 계산에 사용'
+              : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>'
+          : '') +
         '<div class="g2">' +
         '<div class="field"><label>' + (S.state.members.length > 1 ? '내 기본 용돈' : '기본 용돈') + ' (매달 기본값)</label>' +
         money('기본 용돈', pend('set', 'myBudget', S.baseBudget() || ''), 'data-set="myBudget"', '예) 500000') +
@@ -935,6 +1012,17 @@
     var h = '';
 
     /* 멤버 */
+    /* 목표 방식 */
+    var houseMode = S.isHouse();
+    h += '<div class="card"><div class="card-h"><h2>목표 방식</h2></div>' +
+      '<div class="chips">' +
+      '<button class="chip ' + (houseMode ? 'on' : '') + '" data-act="goalmode:set" data-m="house">🏠 내 집 마련</button>' +
+      '<button class="chip ' + (!houseMode ? 'on' : '') + '" data-act="goalmode:set" data-m="saving">💰 목표 저축</button>' +
+      '</div><div class="hint">' + (houseMode
+        ? '집값·대출 조건으로 필요한 자기자본을 계산해요.'
+        : '대출·집 관련 화면 없이 목표 금액만 모아요. 입력해 둔 집 정보는 보관돼 있어 다시 켜면 돌아와요.') +
+      '</div></div>';
+
     /* 멤버는 각자 자기 기기에서 초대 코드로 직접 참여한다. 여기서는 남을 추가하지 않는다. */
     var synced = Sync.configured();
     h += '<div class="card' + dirtyCls('mem') + '"><div class="card-h"><h2>함께 쓰는 사람</h2>' +

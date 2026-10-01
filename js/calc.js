@@ -110,6 +110,14 @@
     var L = Store.loanCond();
     var prod = Store.product(L.product);
     var price = Number(goal && goal.price) || 0;
+    /* 목표 저축 : 대출·부대비용 없이 목표 금액 전부를 모은다 */
+    if (!Store.isHouse()) {
+      return {
+        price: price, product: prod, cond: L, amount: 0, monthlyPayment: 0,
+        ltvLimit: 0, dsrLimit: 0, extra: 0, totalCost: price, needCash: price,
+        capBy: '', caps: [], factor: 0, warnings: []
+      };
+    }
     var i = (Number(L.rate) || 0) / 100 / 12;
     var n = Math.max(1, Math.round((Number(L.years) || 0) * 12));
     var f;

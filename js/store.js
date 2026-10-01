@@ -6,7 +6,7 @@
   var VERSION = 5;
   /* 배포 번호 : sw.js 의 CACHE 버전과 함께 올린다.
      원격 파일이 더 새 번호로 저장돼 있으면 이 기기는 옛 코드이므로 올리지 않고 새로고침한다. */
-  var BUILD = 38;
+  var BUILD = 39;
 
   var CATS = {
     expense: [
@@ -156,6 +156,8 @@
       settings: {
         assets: [],
         haveMode: 'both',
+        /* 목표 방식 : house(내 집 마련 · 기본) | saving(목표 금액만 모으기) */
+        goalMode: 'house',
         annualIncome: 0,
         manualSaving: 0,
         fixed: [],
@@ -211,6 +213,7 @@
     s.settings.fixed = Array.isArray(s.settings.fixed) ? s.settings.fixed : [];
     s.settings.assets = Array.isArray(s.settings.assets) ? s.settings.assets : [];
     s.settings.haveMode = s.settings.haveMode === 'assets' ? 'assets' : 'both';
+    s.settings.goalMode = s.settings.goalMode === 'saving' ? 'saving' : 'house';
 
     /* v4 → v5 : 단일 시드머니를 자산 항목 하나로 옮긴다 */
     if (Number(old.seed) > 0 && !s.settings.assets.length) {
@@ -586,6 +589,14 @@
     /* 아직 고르지 않았으면 '직접 입력'으로 본다 (임의 상품 조건을 끼워 넣지 않는다) */
     return PRODUCTS.find(function (p) { return p.id === id; }) || PRODUCTS[PRODUCTS.length - 1];
   }
+  /* 목표 방식 : 집 마련이 아니면 대출·건물 관련 계산과 화면을 모두 끈다.
+     입력해 둔 집 정보·대출 조건은 지우지 않으므로 다시 켜면 그대로 돌아온다. */
+  function isHouse() { return state.settings.goalMode !== 'saving'; }
+  function setGoalMode(m) {
+    state.settings.goalMode = m === 'saving' ? 'saving' : 'house';
+    touchSettings();
+  }
+
   /* 대출 조건 : 목표와 무관하게 전역 1벌 */
   function loanCond() {
     if (!state.settings.loan) state.settings.loan = defaultLoan();
@@ -812,6 +823,7 @@
     sharedPayload: sharedPayload, mergeRemote: mergeRemote, isPristine: isPristine,
     catList: catList, cat: cat, theme: theme, method: method, product: product,
     applyProduct: applyProduct, loanCond: loanCond, defaultLoan: defaultLoan,
+    isHouse: isHouse, setGoalMode: setGoalMode,
     monthKey: monthKey, budgetFor: budgetFor, hasOwnBudget: hasOwnBudget, setBudget: setBudget,
     baseBudget: baseBudget, setBaseBudget: setBaseBudget,
     setTxFilter: setTxFilter, visibleTx: visibleTx, viewTx: viewTx,

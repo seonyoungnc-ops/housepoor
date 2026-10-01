@@ -435,6 +435,23 @@
         UI.renderSheet();
         return;
       case 'who:set': UI.who = t.dataset.w; UI.render(); return;
+      case 'goalmode:set': {
+        var gm = t.dataset.m;
+        if ((gm === 'saving') === !S.isHouse()) return;
+        var applyMode = function () {
+          S.setGoalMode(gm);
+          UI.render({ force: true });
+          UI.toast(gm === 'saving' ? '목표 저축 모드로 바꿨어요' : '내 집 마련 모드로 바꿨어요');
+          Sync.schedule();
+        };
+        if (gm === 'saving') {
+          askConfirm('목표 저축으로 바꿀까요?',
+            '대출 조건·건물 등 집 관련 화면이 모두 사라지고 목표 금액만으로 계산해요. ' +
+            '입력해 둔 집 정보는 지우지 않아서 다시 내 집 마련으로 바꾸면 그대로 돌아와요. (함께 쓰는 사람 화면도 같이 바뀌어요)',
+            '바꾸기', applyMode);
+        } else applyMode();
+        return;
+      }
       case 'sheet:method': UI.readSheet(); UI.draft.method = t.dataset.pm; UI.renderSheet(); return;
       case 'sheet:quick': {
         UI.readSheet();
@@ -464,7 +481,9 @@
         UI.closeSheet();
         UI.render();
         Sync.schedule();
-        if (after >= 1 && before < 1) setTimeout(function () { UI.toast('🎉 목표 자기자본 달성! 입주 가능해요'); }, 1400);
+        if (after >= 1 && before < 1) setTimeout(function () {
+          UI.toast(S.isHouse() ? '🎉 목표 자기자본 달성! 입주 가능해요' : '🎉 목표 금액 달성!');
+        }, 1400);
         return;
       }
       case 'sheet:del': {
