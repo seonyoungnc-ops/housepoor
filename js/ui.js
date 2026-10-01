@@ -164,6 +164,12 @@
     var budget = Number(S.state.settings.monthlyBudget) || 0;
     var h = whoAmIBox();
 
+    /* 아무것도 없는 새 기기 : 초대받아 온 사람을 위한 입구 */
+    if (!Sync.configured() && S.isPristine()) {
+      h += '<div class="note-box" style="margin-bottom:12px">초대를 받으셨나요? ' +
+        '<button class="btn sm p" data-act="inv:join" style="margin-left:6px">초대 코드로 참여</button></div>';
+    }
+
     if (goals.length > 1) {
       h += '<div class="goalswitch">';
       goals.forEach(function (x) {
@@ -912,20 +918,29 @@
     var h = '';
 
     /* 멤버 */
+    /* 멤버는 각자 자기 기기에서 초대 코드로 직접 참여한다. 여기서는 남을 추가하지 않는다. */
+    var synced = Sync.configured();
     h += '<div class="card' + dirtyCls('mem') + '"><div class="card-h"><h2>함께 쓰는 사람</h2>' +
       (dirty('mem') ? saveActions('mem')
-        : (S.state.members.length < 2 ? '<button class="btn sm p" data-act="mem:add">+ 추가</button>' : '<span class="tag">최대 2명</span>')) +
+        : (synced ? '<button class="btn sm p" data-act="inv:open">초대하기</button>' : '<span class="tag">혼자 사용 중</span>')) +
       '</div>';
     S.state.members.forEach(function (m) {
+      var isMe = S.state.me === m.id && !S.needsMe();
       h += '<div class="memrow">' +
         '<span class="mdot big" style="background:' + m.color + '"></span>' +
-        '<input type="text" class="grow" data-mem="' + m.id + '" value="' + esc(pend('mem', m.id, m.name)) + '" maxlength="10" placeholder="이름 입력">' +
-        '<button class="btn sm ' + (S.state.me === m.id && !S.needsMe() ? 'p' : '') + '" data-act="mem:me" data-id="' + m.id + '">' +
-        (S.state.me === m.id && !S.needsMe() ? '이게 나' : '나로 지정') + '</button>' +
-        (S.state.members.length > 1 ? '<button class="btn sm r" data-act="mem:del" data-id="' + m.id + '">삭제</button>' : '') +
+        (isMe
+          ? '<input type="text" class="grow" data-mem="' + m.id + '" value="' + esc(pend('mem', m.id, m.name)) + '" maxlength="10" placeholder="내 이름 입력">' +
+            '<span class="tag">나</span>'
+          : '<span class="grow">' + esc(mname(m)) + '</span>' +
+            (S.needsMe() ? '<button class="btn sm" data-act="mem:me" data-id="' + m.id + '">나로 지정</button>' : '') +
+            '<button class="btn sm r" data-act="mem:del" data-id="' + m.id + '">삭제</button>') +
         '</div>';
     });
-    h += '<div class="hint">기록할 때 작성자가 함께 저장돼요. 두 기기에서 같은 저장소에 연결하면 내역이 합쳐집니다.</div></div>';
+    h += '<div class="hint">' + (synced
+      ? '같이 쓸 사람에게 <b>초대하기</b>로 링크·QR을 보내면, 그 사람이 자기 이름으로 직접 참여해요.'
+      : '아래 GitHub 동기화를 연결하면 같이 쓸 사람을 초대할 수 있어요.') +
+      '</div><div class="row wrap" style="margin-top:8px">' +
+      '<button class="btn sm" data-act="inv:join">초대 코드로 참여</button></div></div>';
 
     /* 동기화 */
     var last = sy.lastSync ? new Date(sy.lastSync).toLocaleString('ko-KR') : '없음';

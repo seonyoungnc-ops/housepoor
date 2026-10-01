@@ -491,3 +491,8 @@ textarea.masked{-webkit-text-security:disc;text-security:disc;color:var(--muted)
 .monthrow .bar{flex:1;height:14px;border:2px solid var(--line);background:var(--panel-2);min-width:40px}
 .monthrow .bar i{display:block;height:100%;background:var(--red)}
 .monthrow .mv{width:84px;text-align:right;font-size:12px;font-weight:700;flex:none}
+
+/* 초대 QR : 테마와 무관하게 흰 바탕·검은 점이어야 카메라가 읽는다 */
+.qrbox{background:#fff;border:var(--bw) solid var(--line, #3a3340);border-radius:8px;padding:8px;
+  width:min(240px,100%);margin:0 auto}
+.qrbox svg{display:block;width:100%;height:auto}

@@ -281,13 +281,28 @@
       }
 
       /* ---- 멤버 ---- */
-      case 'mem:add':
-        if (!S.addMember('')) { UI.toast('2명까지만 등록할 수 있어요'); return; }
-        UI.render(); UI.toast('함께 쓰는 사람을 추가했어요'); Sync.schedule(); return;
+      /* ---- 초대 / 참여 ---- */
+      case 'inv:open': openInviteSheet(); return;
+      case 'inv:copyLink': copyText(inviteLink(), '초대 링크를 복사했어요. 같이 쓸 사람에게 보내주세요'); return;
+      case 'inv:copyCode': copyText(makeCode(), '초대 코드를 복사했어요'); return;
+      case 'inv:join': openJoinSheet(''); return;
+      case 'inv:paste':
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          UI.toast('이 브라우저는 붙여넣기 버튼을 지원하지 않아요. 칸에 직접 붙여넣어 주세요');
+          return;
+        }
+        navigator.clipboard.readText().then(function (txt) {
+          var el = document.getElementById('joinIn');
+          if (el) el.value = txt.trim();
+        }).catch(function () { UI.toast('클립보드를 읽을 수 없어요'); });
+        return;
+      case 'inv:check': checkJoin(); return;
+      case 'inv:new': finishJoin(null); return;
+      case 'inv:pick': finishJoin(id); return;
       case 'mem:me':
         S.setMe(id); UI.render(); UI.toast('이 기기의 사용자를 지정했어요'); return;
       case 'mem:del':
-        askConfirm('이 사람을 삭제할까요?', '이미 기록된 내역의 작성자 표시만 사라집니다.', '삭제', function () {
+        askConfirm('이 사람을 삭제할까요?', '기록된 내역은 남고 작성자 표시만 사라져요. 다시 같이 쓰려면 초대 코드로 참여해야 해요.', '삭제', function () {
           S.removeMember(id); UI.render(); Sync.schedule();
         });
         return;
@@ -321,14 +336,9 @@
         });
         return;
 
-      case 'tok:export': {
-        var c2 = S.state.sync;
-        var code = 'HP1.' + btoa(unescape(encodeURIComponent(
-          [c2.repo, c2.path || 'housepoor.json', c2.branch || 'main', Sync.cleanToken(c2.token)].join('\n')
-        )));
-        copyText(code, '연결 코드를 복사했어요. 다른 기기에서 "연결 코드 입력"에 붙여넣으세요');
+      case 'tok:export':
+        copyText(makeCode(), '연결 코드를 복사했어요. 다른 기기에서 "연결 코드 입력"에 붙여넣으세요');
         return;
-      }
       case 'tok:import': openCodeSheet(); return;
       case 'tok:pasteCode':
         if (!navigator.clipboard || !navigator.clipboard.readText) {
@@ -615,8 +625,28 @@
     }
   }
 
+  /* 연결 코드 : 저장소·경로·브랜치·토큰을 한 줄로 묶는다 (초대 코드도 같은 형식) */
+  function makeCode() {
+    var c2 = S.state.sync;
+    return 'HP1.' + btoa(unescape(encodeURIComponent(
+      [c2.repo, c2.path || 'housepoor.json', c2.branch || 'main', Sync.cleanToken(c2.token)].join('\n')
+    )));
+  }
+
+  /* 초대 링크 : 해시(#)에 코드를 싣는다. 해시는 서버로 전송되지 않는다. */
+  function inviteLink() {
+    return location.origin + location.pathname + '#join=' + encodeURIComponent(makeCode());
+  }
+
   function parseCode(raw) {
-    var t = String(raw || '').trim().replace(/\s/g, '');
+    var t = String(raw || '').trim();
+    /* 초대 링크를 통째로 붙여넣어도 코드만 꺼낸다 */
+    var hi = t.indexOf('#join=');
+    if (hi >= 0) {
+      t = t.slice(hi + 6);
+      try { t = decodeURIComponent(t); } catch (e) { }
+    }
+    t = t.replace(/\s/g, '');
     if (t.indexOf('HP1.') !== 0) return null;
     try {
       var txt = decodeURIComponent(escape(atob(t.slice(4))));
@@ -644,6 +674,151 @@
       if (el) el.focus();
     }, 60);
   }
+
+  /* ---------- 초대 · 참여 ----------
+     초대하는 쪽 : 저장소를 직접 연결한 사람. 링크/QR/코드를 건넨다.
+     참여하는 쪽 : 링크를 열거나 코드를 붙여넣고 "자기 이름"으로 직접 등록한다.
+     (남이 대신 추가하지 않으므로 중복 멤버·작성자 꼬임이 생기지 않는다) */
+  function esc(s) { return UI.esc(s); }
+
+  function openSheet(h) {
+    document.getElementById('sheet').innerHTML = h;
+    document.getElementById('sheetWrap').hidden = false;
+  }
+
+  function openInviteSheet() {
+    if (!Sync.configured()) { UI.toast('먼저 GitHub 동기화를 연결해 주세요'); return; }
+    if (!(S.meMember().name || '').trim()) { UI.toast('먼저 내 이름을 입력하고 저장해 주세요'); return; }
+    /* 초대받은 사람이 내 이름을 볼 수 있게 먼저 올려 둔다 */
+    Sync.run(true);
+
+    var link = inviteLink();
+    var qr = '';
+    try {
+      var q = qrcode(0, 'L');
+      q.addData(link);
+      q.make();
+      qr = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+    } catch (e) { qr = ''; }
+
+    var full = S.state.members.length >= 2;
+    openSheet('<h3>같이 쓸 사람 초대<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+      (full ? '<div class="warn-box">이미 2명이 함께 쓰고 있어요. 이 코드로는 <b>기존 사용자의 다른 기기</b>만 연결할 수 있어요.</div>' : '') +
+      '<div class="tiny muted" style="margin-bottom:10px">상대 폰 카메라로 QR을 찍으면 바로 참여 화면이 열려요. ' +
+      '상대는 <b>이름만 입력</b>하면 되고, GitHub 설정은 자동으로 채워집니다.</div>' +
+      (qr ? '<div class="qrbox">' + qr + '</div>' : '') +
+      '<div class="row" style="margin-top:12px">' +
+      '<button class="btn p grow" data-act="inv:copyLink" style="text-align:center">초대 링크 복사</button>' +
+      '<button class="btn grow" data-act="inv:copyCode" style="text-align:center">초대 코드 복사</button></div>' +
+      '<div class="warn-box" style="margin-top:10px">⚠ 링크·코드에는 저장소 접근 토큰이 들어 있어요. ' +
+      '같이 쓸 사람에게만 보내고, 유출되면 GitHub에서 토큰을 폐기한 뒤 새로 발급하세요.</div>');
+  }
+
+  var JOIN = null;   /* 참여 중인 원격 데이터와 이전 연결 설정 */
+
+  function openJoinSheet(prefill) {
+    JOIN = null;
+    openSheet('<h3>초대 코드로 참여<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+      '<div class="tiny muted" style="margin-bottom:10px">받은 <b>초대 링크</b>나 <b>초대 코드</b>를 붙여넣으세요.</div>' +
+      '<textarea id="joinIn" rows="3" placeholder="HP1... 또는 https://...#join=..." autocomplete="off" autocapitalize="off" ' +
+      'autocorrect="off" spellcheck="false" style="font-size:12px;word-break:break-all">' + esc(prefill || '') + '</textarea>' +
+      '<div class="row" style="margin-top:10px">' +
+      '<button class="btn grow" data-act="inv:paste" style="text-align:center">클립보드에서</button>' +
+      '<button class="btn p grow" data-act="inv:check" style="text-align:center">다음</button></div>');
+    if (prefill) checkJoin();
+  }
+
+  function checkJoin() {
+    var raw = (document.getElementById('joinIn') || {}).value || '';
+    var parsed = parseCode(raw);
+    if (!parsed) { UI.toast('초대 코드 형식이 아니에요'); return; }
+    var prev = Object.assign({}, S.state.sync);
+    Object.assign(S.state.sync, parsed);
+    UI.toast('저장소 확인 중...');
+    Sync.pull().then(function (r) {
+      if (!r.data) {
+        S.state.sync = prev;
+        UI.toast('아직 저장된 데이터가 없어요. 초대한 사람이 먼저 동기화해야 해요');
+        return;
+      }
+      JOIN = { data: r.data, prev: prev };
+      renderJoinPick();
+    }).catch(function (e) {
+      S.state.sync = prev;
+      UI.toast((e && e.message) || '저장소에 연결할 수 없어요');
+    });
+  }
+
+  function renderJoinPick() {
+    var members = S.remoteMembers(JOIN.data);
+    var full = members.length >= 2;
+    var h = '<h3>참여하기<button class="icon-btn" data-act="sheet:close">✕</button></h3>';
+    if (members.length) {
+      h += '<div class="tiny muted" style="margin-bottom:8px">함께 쓰는 사람: ' +
+        members.map(function (m) { return esc(m.name || '이름 없음'); }).join(', ') + '</div>';
+    }
+    if (!full) {
+      h += '<div class="field"><label>내 이름</label>' +
+        '<input type="text" id="joinName" maxlength="10" placeholder="이름 입력" autocomplete="off"></div>' +
+        '<button class="btn p block" data-act="inv:new" style="text-align:center">이 이름으로 참여</button>';
+    } else {
+      h += '<div class="warn-box">이미 2명이 함께 쓰고 있어 새로 참여할 수 없어요.</div>';
+    }
+    if (members.length) {
+      h += '<div class="divider"></div><div class="tiny muted" style="margin-bottom:8px">이미 참여한 사람의 <b>다른 기기</b>라면 본인을 고르세요.</div>' +
+        '<div class="row wrap">' + members.map(function (m) {
+          return '<button class="btn sm" data-act="inv:pick" data-id="' + esc(m.id) + '">' +
+            '<span class="mdot" style="background:' + esc(m.color) + '"></span>' + esc(m.name || '이름 없음') + '</button>';
+        }).join('') + '</div>';
+    }
+    openSheet(h);
+  }
+
+  function finishJoin(pickId) {
+    if (!JOIN) return;
+    var name = ((document.getElementById('joinName') || {}).value || '').trim();
+    if (!pickId && !name) { UI.toast('이름을 입력해 주세요'); return; }
+
+    /* 이 기기에서 참여 전에 남긴 기록 → 참여 후 내 이름으로 옮긴다 */
+    var prevMe = S.state.me;
+    var remoteIds = {};
+    (JOIN.data.tx || []).forEach(function (t) { remoteIds[t.id] = 1; });
+    var mine = S.state.tx.filter(function (t) { return t.by === prevMe && !remoteIds[t.id]; });
+
+    /* 이 기기의 임시 멤버(기본 m1 등)는 버리고 저장소의 멤버 명단을 그대로 따른다
+       (기본 id m1 이 초대한 사람의 id 와 겹쳐 이름을 덮어쓰는 것을 막는다) */
+    S.state.members = [];
+    S.state.sync.sha = '';
+    S.mergeRemote(JOIN.data);
+
+    if (pickId) {
+      S.setMe(pickId);
+    } else {
+      var m = S.addMember(name);
+      if (!m) { UI.toast('이미 2명이 함께 쓰고 있어요'); return; }
+      S.setMe(m.id);
+      mine.forEach(function (t) { t.by = m.id; t.updatedAt = S.now(); });
+      S.save();
+    }
+    JOIN = null;
+    UI.closeSheet();
+    UI.view = 'home';
+    UI.render({ top: true, force: true });
+    UI.toast(pickId ? S.meMember().name + ' 님으로 연결했어요' : name + ' 님, 함께 쓰기에 참여했어요!');
+    Sync.run(true);
+  }
+
+  /* 초대 링크로 들어온 경우 : #join=... 을 읽고 주소창에서는 지운다 */
+  function handleJoinHash() {
+    var h = location.hash || '';
+    if (h.indexOf('#join=') !== 0) return;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { }
+    UI.view = 'settings';
+    UI.render({ top: true, force: true });
+    openJoinSheet(h);
+  }
+  window.addEventListener('hashchange', handleJoinHash);
+  setTimeout(handleJoinHash, 0);
 
   /* ---------- 자산 시트 ---------- */
   function openAssetSheet(id) {

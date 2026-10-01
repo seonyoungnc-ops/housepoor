@@ -6,7 +6,7 @@
   var VERSION = 5;
   /* 배포 번호 : sw.js 의 CACHE 버전과 함께 올린다.
      원격 파일이 더 새 번호로 저장돼 있으면 이 기기는 옛 코드이므로 올리지 않고 새로고침한다. */
-  var BUILD = 35;
+  var BUILD = 36;
 
   var CATS = {
     expense: [
@@ -414,6 +414,11 @@
     });
   }
 
+  /* 원격 파일의 멤버 명단 (삭제 기록 반영) — 참여 화면용 */
+  function remoteMembers(remote) {
+    return alive((remote && remote.members) || [], splitTombs(remote || {}).mem).slice(0, 2);
+  }
+
   function sharedPayload() {
     return {
       v: VERSION,
@@ -760,7 +765,7 @@
     goalsSorted: goalsSorted, addGoal: addGoal, removeGoal: removeGoal,
     activeGoal: activeGoal, touchGoal: touchGoal, touchSettings: touchSettings,
     addMember: addMember, removeMember: removeMember, member: member, meMember: meMember,
-    setMe: setMe, needsMe: needsMe,
+    setMe: setMe, needsMe: needsMe, remoteMembers: remoteMembers,
     sharedPayload: sharedPayload, mergeRemote: mergeRemote, isPristine: isPristine,
     catList: catList, cat: cat, theme: theme, method: method, product: product,
     applyProduct: applyProduct, loanCond: loanCond, defaultLoan: defaultLoan,
