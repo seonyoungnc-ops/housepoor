@@ -394,11 +394,14 @@ html[data-theme="night"] .cal .c.today .e,html[data-theme="night"] .cal .c.today
 @media (max-width:340px){.ascards{grid-template-columns:repeat(2,1fr)}}
 
 /* ---------- v6 : 홈 3카드 ---------- */
+/* 모바일 : 내용만큼만(hug) · PC : 3열에서 높이 통일 */
 .hcards{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:24px}
-@media (min-width:860px){.hcards{grid-template-columns:repeat(3,1fr);align-items:stretch}}
-/* 세 카드 높이를 맞추고, 내용은 위에서부터 채운다 */
-.hcard{margin-bottom:0;height:100%;display:flex;flex-direction:column}
-.hcard>.card-h{flex:none}
+.hcard{margin-bottom:0;height:auto}
+@media (min-width:860px){
+  .hcards{grid-template-columns:repeat(3,1fr);align-items:stretch}
+  .hcard{height:100%;display:flex;flex-direction:column}
+  .hcard>.card-h{flex:none}
+}
 .hcard .card-h{align-items:baseline}
 .hcard .kv{font-size:12px}
 .hcard .kv b{font-size:13px}
