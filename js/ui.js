@@ -125,6 +125,36 @@
     Pixel.render(cv, goal, ratio, night, lw);
   }
 
+  function paintJar(cv, ratio, night) {
+    if (!cv) return;
+    var w = cv.clientWidth || cv.offsetWidth || 320;
+    var h = cv.clientHeight || 200;
+    Pixel.renderJar(cv, ratio, night, Math.round(Pixel.H * w / Math.max(1, h)));
+  }
+
+  /* 0% 처럼 보이지 않게 : 1% 미만이어도 모은 돈이 있으면 소수점까지 */
+  function pctText(r) {
+    if (r >= 1) return '100%';
+    if (r <= 0) return '0%';
+    var v = r * 100;
+    return (v < 1 ? v.toFixed(1) : Math.floor(v)) + '%';
+  }
+
+  /* 25 / 50 / 75 / 100% 단계 배지 + 다음 단계까지 남은 금액 */
+  function milestones(p) {
+    var steps = [[0.25, '🥉', '25%'], [0.5, '🥈', '50%'], [0.75, '🥇', '75%'], [1, '🏆', '달성']];
+    var next = steps.find(function (s) { return p.ratio < s[0]; });
+    var h = '<div class="milestones">' + steps.map(function (s) {
+      return '<span class="ms' + (p.ratio >= s[0] ? ' on' : '') + '"><i>' + s[1] + '</i>' + s[2] + '</span>';
+    }).join('') + '</div>';
+    if (next) {
+      var need = Math.max(0, Math.ceil(p.loan.needCash * next[0] - p.have));
+      h += '<div class="hint">다음 단계 <b>' + next[2] + '</b>까지 <b>' + short(need) + '원</b>' +
+        (p.pace && p.pace.monthly > 0 ? ' · 지금 속도로 약 ' + Math.max(1, Math.ceil(need / p.pace.monthly)) + '개월' : '') + '</div>';
+    }
+    return h;
+  }
+
   function isNight() { return document.documentElement.dataset.theme === 'night'; }
 
   /* ---------- 저장 대기 중인 편집 ---------- */
@@ -199,13 +229,12 @@
         '<div class="shapetag">' + esc(Pixel.shape(g.shape).name) + ' · ' + Pixel.clampFloors(g.shape, g.floors) + '층</div>' +
         '</div>';
     } else {
-      /* 목표 저축 : 건물 대신 저금통과 진행률 */
-      h += '<div class="hero savehero">' +
+      /* 목표 저축 : 건물 대신 진척도만큼 동전이 차오르는 유리병 */
+      h += '<div class="hero">' + heroCanvas('heroJar') +
         '<div class="rankbadge">' + g.rank + '위</div>' +
-        spr('piggy', 'bigspr') +
-        '<b class="num savepct">' + (p.noPrice ? '-' : Math.floor(p.ratio * 100) + '%') + '</b>' +
-        '<div class="savebar">' + pbar(p.ratio, p.ratio >= 1 ? '' : 'sm') + '</div>' +
         '<div class="nameplate">' + esc(g.name || '목표 이름을 지어주세요') + '</div>' +
+        '<div class="shapetag">' + (p.noPrice ? '목표 금액 미정' : pctText(p.ratio)) + '</div>' +
+        (p.noPrice ? '' : '<div class="jarplate num">' + short(p.have) + ' <span>/ ' + short(p.loan.price) + '원</span></div>') +
         '</div>';
     }
 
@@ -225,8 +254,9 @@
         '<div class="kv"><span>현재 모은 돈</span><b class="num">' + C.kor(p.have) + '</b></div>' +
         '<div class="kv"><span>남은 금액</span><b class="num hi">' + C.kor(p.short) + '</b></div>' +
         '<div class="gap"></div>' + pbar(p.ratio, p.ratio >= 1 ? '' : (p.ratio < .3 ? 'warn sm' : 'sm')) +
-        '<div class="hint">진행률 ' + Math.floor(p.ratio * 100) + '%' +
-        (p.eta && !p.eta.done ? ' · ' + (p.eta.tooLong ? '50년 이상' : p.eta.monthsR + '개월 후 달성 예상') : '') + '</div>';
+        '<div class="hint">진행률 ' + pctText(p.ratio) +
+        (p.eta && !p.eta.done ? ' · ' + (p.eta.tooLong ? '50년 이상' : p.eta.monthsR + '개월 후 달성 예상') : '') + '</div>' +
+        milestones(p);
     } else if (p.noPrice) {
       h += '<div class="empty">목표 금액을 정하면 계산이 시작돼요</div>' +
         '<button class="btn p block" data-act="nav:goals">목표 설정하러 가기</button>';
@@ -342,7 +372,10 @@
 
     return {
       html: h,
-      after: function () { if (house) paintBuilding(document.getElementById('heroCanvas'), g, p.ratio, isNight()); }
+      after: function () {
+        if (house) paintBuilding(document.getElementById('heroCanvas'), g, p.ratio, isNight());
+        else paintJar(document.getElementById('heroJar'), p.ratio, isNight());
+      }
     };
   }
 
@@ -829,7 +862,7 @@
         '<div class="kv"><span>달성 예상</span><b>' +
         (p.eta ? (p.eta.done ? '달성!' : (p.eta.tooLong ? '50년 이상' : p.eta.monthsR + '개월 후 (' + p.eta.date + ')')) : '-') + '</b></div>' +
         '<div class="gap"></div>' + pbar(p.ratio, 'sm') +
-        '<div class="hint">진행률 ' + Math.floor(p.ratio * 100) + '%</div>';
+        '<div class="hint">진행률 ' + pctText(p.ratio) + '</div>' + milestones(p);
       h += '</div></div>';
     });
     h += '</div>';
@@ -1298,6 +1331,8 @@
     var night = isNight();
     var hero = document.getElementById('heroCanvas');
     if (hero) paintBuilding(hero, S.activeGoal(), C.progress(S.activeGoal()).ratio, night);
+    var jar = document.getElementById('heroJar');
+    if (jar) paintJar(jar, C.progress(S.activeGoal()).ratio, night);
     document.querySelectorAll('canvas.mini[data-goal]').forEach(function (cv) {
       var g = S.state.goals.find(function (x) { return x.id === cv.dataset.goal; });
       if (g) paintBuilding(cv, g, C.progress(g).ratio, night);

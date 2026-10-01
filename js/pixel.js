@@ -67,23 +67,8 @@
     px(g, gx, topY - 1, w0, 1, ink);
   }
 
-  /* ratio : 0~1 진척도 → 아래층부터 불이 켜진다
-     logicalW : 컨테이너 비율에 맞춘 가로 도트 수(배경을 꽉 채우기 위함) */
-  function render(canvas, goal, ratio, night, logicalW) {
-    goal = goal || {};
-    var sh = shape(goal.shape);
-    var F = clampFloors(goal.shape, goal.floors);
-    ratio = Math.max(0, Math.min(1, ratio || 0));
-
-    var W = Math.max(130, Math.min(560, Math.round(logicalW || 160)));
-    canvas.width = W;
-    canvas.height = H;
-    var g = canvas.getContext('2d');
-    g.imageSmoothingEnabled = false;
-
-    var th = Store.theme(goal.theme);
-    var ink = '#6b6383';
-
+  /* 하늘 · 먼 산 · 땅 · 길 : 건물과 저금통 장면이 함께 쓴다 */
+  function backdrop(g, W, night, ink) {
     /* --- 하늘 --- */
     px(g, 0, 0, W, H, night ? '#5468a8' : '#d3ecfb');
     px(g, 0, 0, W, 50, night ? '#4a5c99' : '#c3e4fa');
@@ -125,6 +110,27 @@
     px(g, pathX - 1, BASE + 2, 1, H - BASE - 2, ink);
     px(g, pathX + 24, BASE + 2, 1, H - BASE - 2, ink);
     for (var r = BASE + 6; r < H; r += 8) px(g, pathX + 10, r, 4, 3, night ? '#8b85ab' : '#fcfaf6');
+  }
+
+  /* ratio : 0~1 진척도 → 아래층부터 불이 켜진다
+     logicalW : 컨테이너 비율에 맞춘 가로 도트 수(배경을 꽉 채우기 위함) */
+  function render(canvas, goal, ratio, night, logicalW) {
+    goal = goal || {};
+    var sh = shape(goal.shape);
+    var F = clampFloors(goal.shape, goal.floors);
+    ratio = Math.max(0, Math.min(1, ratio || 0));
+
+    var W = Math.max(130, Math.min(560, Math.round(logicalW || 160)));
+    canvas.width = W;
+    canvas.height = H;
+    var g = canvas.getContext('2d');
+    g.imageSmoothingEnabled = false;
+
+    var th = Store.theme(goal.theme);
+    var ink = '#6b6383';
+
+    backdrop(g, W, night, ink);
+    var grass2 = night ? '#44705e' : '#a0d184';
 
     /* --- 건물 본체 --- */
     var bodyW = sh.w, x0 = Math.round((W - bodyW) / 2);
@@ -269,8 +275,133 @@
     return canvas;
   }
 
+
+  /* ===== 목표 저축 : 동전 유리병 =====
+     ratio 만큼 아래부터 동전이 차오른다. 25·50·75% 눈금, 100% 면 넘쳐서 반짝인다.
+     0% 여도 병 위로 떨어지는 동전을 그려 "모으는 중" 느낌을 준다. */
+  function renderJar(canvas, ratio, night, logicalW) {
+    ratio = Math.max(0, Math.min(1, ratio || 0));
+    var W = Math.max(130, Math.min(560, Math.round(logicalW || 160)));
+    canvas.width = W;
+    canvas.height = H;
+    var g = canvas.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    var ink = '#6b6383';
+
+    backdrop(g, W, night, ink);
+
+    var jw = 74, jh = 104;
+    var x0 = Math.round((W - jw) / 2), top = BASE - jh;
+    var neckW = 50, nx = x0 + (jw - neckW) / 2;
+
+    /* 그림자 */
+    px(g, x0 + 4, BASE - 2, jw, 4, 'rgba(107,99,131,.18)');
+
+    /* 유리 몸통 (모서리 2px 깎기) */
+    var glass = night ? 'rgba(170,190,235,.55)' : 'rgba(236,247,255,.78)';
+    px(g, x0 + 2, top, jw - 4, jh, glass);
+    px(g, x0, top + 2, jw, jh - 4, glass);
+
+    /* 동전 */
+    var ix = x0 + 3, iw = jw - 6, iTop = top + 4, iBot = BASE - 3;
+    var innerH = iBot - iTop;
+    var fillH = Math.round(innerH * ratio);
+    if (ratio > 0 && fillH < 4) fillH = 4;
+    var coin = '#ffd25e', coinHi = '#fff1b3', coinLo = '#e0a63a';
+    if (fillH > 0) {
+      g.save();
+      g.beginPath();
+      g.rect(ix, iBot - fillH, iw, fillH);
+      g.clip();
+      for (var y = iBot - 4, row = 0; y > iBot - fillH - 4; y -= 4, row++) {
+        for (var x = ix - 4 + (row % 2) * 4; x < ix + iw; x += 8) {
+          px(g, x, y, 7, 4, coin);
+          px(g, x, y, 7, 1, coinHi);
+          px(g, x, y + 3, 7, 1, coinLo);
+          px(g, x + 7, y, 1, 4, coinLo);
+        }
+      }
+      g.restore();
+      /* 동전 더미 윗면 */
+      px(g, ix, iBot - fillH, iw, 1, coinHi);
+    }
+
+    /* 유리 반사광 */
+    px(g, x0 + 6, top + 8, 3, jh - 22, 'rgba(255,255,255,.75)');
+    px(g, x0 + 11, top + 10, 1, 18, 'rgba(255,255,255,.6)');
+
+    /* 외곽선 */
+    px(g, x0 + 2, top, jw - 4, 1, ink);
+    px(g, x0 + 2, BASE - 1, jw - 4, 1, ink);
+    px(g, x0, top + 2, 1, jh - 4, ink);
+    px(g, x0 + jw - 1, top + 2, 1, jh - 4, ink);
+    px(g, x0 + 1, top + 1, 1, 1, ink);
+    px(g, x0 + jw - 2, top + 1, 1, 1, ink);
+    px(g, x0 + 1, BASE - 2, 1, 1, ink);
+    px(g, x0 + jw - 2, BASE - 2, 1, 1, ink);
+
+    /* 눈금 25 / 50 / 75% */
+    [0.25, 0.5, 0.75].forEach(function (m) {
+      var my = iBot - Math.round(innerH * m);
+      var reached = ratio >= m;
+      px(g, x0 + jw - 9, my, 6, 1, reached ? '#e0a63a' : 'rgba(107,99,131,.45)');
+      px(g, x0 + jw + 2, my - 1, 3, 3, reached ? '#ffe08a' : (night ? '#7d86b8' : '#cfd8ea'));
+      px(g, x0 + jw + 1, my, 1, 1, ink);
+    });
+
+    /* 목 + 뚜껑 (동전 투입구) */
+    px(g, nx, top - 6, neckW, 6, glass);
+    px(g, nx, top - 6, 1, 6, ink);
+    px(g, nx + neckW - 1, top - 6, 1, 6, ink);
+    var lidC = ratio >= 1 ? '#ffe08a' : '#f2938c', lidC2 = ratio >= 1 ? '#f5c95c' : '#dd7c78';
+    px(g, nx - 4, top - 16, neckW + 8, 10, lidC);
+    px(g, nx - 4, top - 8, neckW + 8, 2, lidC2);
+    px(g, nx - 4, top - 16, neckW + 8, 1, ink);
+    px(g, nx - 4, top - 7, neckW + 8, 1, ink);
+    px(g, nx - 4, top - 16, 1, 10, ink);
+    px(g, nx + neckW + 3, top - 16, 1, 10, ink);
+    var slotX = x0 + jw / 2 - 8;
+    px(g, slotX, top - 13, 16, 2, ink);
+
+    if (ratio < 1) {
+      /* 떨어지는 동전 + 움직임 선 */
+      var cx = Math.round(x0 + jw / 2), cy = top - 24;
+      disc(g, cx, cy, 6, ink);
+      disc(g, cx, cy, 5, coin);
+      px(g, cx - 3, cy - 3, 3, 2, coinHi);
+      px(g, cx - 1, cy - 2, 2, 5, coinLo);
+      px(g, cx - 9, cy - 8, 1, 4, 'rgba(107,99,131,.5)');
+      px(g, cx - 12, cy - 2, 1, 4, 'rgba(107,99,131,.5)');
+      px(g, cx + 9, cy - 8, 1, 4, 'rgba(107,99,131,.5)');
+    } else {
+      /* 달성 : 뚜껑 위 별 + 반짝이 */
+      var sx = Math.round(x0 + jw / 2), sy = top - 26;
+      px(g, sx - 1, sy - 6, 3, 13, '#ffe08a');
+      px(g, sx - 6, sy - 1, 13, 3, '#ffe08a');
+      px(g, sx - 3, sy - 3, 7, 7, '#fff1b3');
+      px(g, sx, sy, 1, 1, ink);
+    }
+
+    /* 반짝이 : 진척도가 오를수록 많아진다 */
+    var SPARK = [[-22, 30], [jw + 14, 52], [-16, 78], [jw + 20, 18], [-30, 54], [jw + 10, 86]];
+    var nSpark = Math.round(ratio * SPARK.length);
+    for (var k = 0; k < nSpark; k++) {
+      var spx = x0 + SPARK[k][0], spy = top + SPARK[k][1];
+      px(g, spx, spy - 2, 1, 5, '#ffffff');
+      px(g, spx - 2, spy, 5, 1, '#ffffff');
+    }
+
+    /* 조경 */
+    tree(g, 10, BASE + 22, night, ink);
+    tree(g, W - 22, BASE + 26, night, ink);
+    for (var bx = x0 - 40; bx > 24; bx -= 46) tree(g, bx, BASE + 12, night, ink);
+    for (var bx2 = x0 + jw + 30; bx2 < W - 34; bx2 += 46) tree(g, bx2, BASE + 12, night, ink);
+
+    return canvas;
+  }
+
   global.Pixel = {
-    render: render, W: W, H: H,
+    render: render, renderJar: renderJar, W: W, H: H,
     SHAPES: SHAPES, SHAPE_IDS: SHAPE_IDS, shape: shape, clampFloors: clampFloors
   };
 })(window);
