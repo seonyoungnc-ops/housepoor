@@ -118,15 +118,15 @@
     var pre = scope + ':';
     return Object.keys(UI.edits).some(function (k) { return k.indexOf(pre) === 0; });
   }
-  function saveBar(scope, label) {
+  /* 섹션 헤더에 붙이는 저장/되돌리기 */
+  function saveActions(scope) {
     if (!dirty(scope)) return '';
-    return '<div class="savebar">' +
-      '<span class="tiny">' + esc(label || '변경한 내용이 아직 저장되지 않았어요') + '</span>' +
-      '<span class="row">' +
+    return '<span class="row saveact" style="gap:6px">' +
       '<button class="btn sm" data-act="edit:cancel" data-scope="' + esc(scope) + '">되돌리기</button>' +
       '<button class="btn sm p" data-act="edit:save" data-scope="' + esc(scope) + '">저장</button>' +
-      '</span></div>';
+      '</span>';
   }
+  function dirtyCls(scope) { return dirty(scope) ? ' dirty' : ''; }
 
   function isStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches ||
@@ -534,6 +534,8 @@
       (goals.length < 3 ? '<button class="btn sm p" data-act="goal:add">+ 목표 추가</button>' : '<span class="tag">최대 3개</span>') +
       '</div><div class="tiny muted">1~3위까지 등록할 수 있어요. 홈 화면은 선택한 목표를 기준으로 계산됩니다.</div></div>';
 
+    h += '<div class="goalgrid cols' + goals.length + '">';
+
     goals.forEach(function (g, idx) {
       var p = C.progress(g);
       var scope = 'g:' + g.id;
@@ -546,12 +548,14 @@
       var sh = Pixel.shape(vShape);
       var floors = Pixel.clampFloors(vShape, pend(scope, 'floors', g.floors));
 
-      h += '<div class="goalcard"><div class="gh">' +
+      h += '<div class="goalcard' + dirtyCls(scope) + '"><div class="gh">' +
         '<span class="rk">' + g.rank + '위</span>' +
         '<span class="nm">' + esc(vName || '(이름 없음)') + '</span>' +
-        '<button class="btn sm" data-act="goal:up" data-id="' + g.id + '"' + (idx === 0 ? ' disabled' : '') + '>▲</button>' +
-        '<button class="btn sm" data-act="goal:down" data-id="' + g.id + '"' + (idx === goals.length - 1 ? ' disabled' : '') + '>▼</button>' +
-        (goals.length > 1 ? '<button class="btn sm r" data-act="goal:del" data-id="' + g.id + '">삭제</button>' : '') +
+        (dirty(scope)
+          ? saveActions(scope)
+          : '<button class="btn sm" data-act="goal:up" data-id="' + g.id + '"' + (idx === 0 ? ' disabled' : '') + '>▲</button>' +
+            '<button class="btn sm" data-act="goal:down" data-id="' + g.id + '"' + (idx === goals.length - 1 ? ' disabled' : '') + '>▼</button>' +
+            (goals.length > 1 ? '<button class="btn sm r" data-act="goal:del" data-id="' + g.id + '">삭제</button>' : '')) +
         '</div>';
 
       h += '<div class="gbanner"><canvas class="mini" data-goal="' + g.id + '" width="160" height="200"></canvas></div>';
@@ -585,7 +589,7 @@
             ' class="' + (vTheme === t.id ? 'on' : '') + '" style="background:' + t.body + '"></button>';
         }).join('') + '</div></div>';
 
-      h += saveBar(scope) + '<div class="divider"></div>';
+      h += '<div class="divider"></div>';
       p.loan.warnings.forEach(function (w) {
         h += '<div class="warn-box">⚠ ' + esc(w) + '</div>';
       });
@@ -601,6 +605,8 @@
 
       h += '</div></div>';
     });
+
+    h += '</div>';
 
     return {
       html: h,
@@ -677,7 +683,8 @@
           : '') +
         '<div class="kv"><span><b>모은 돈</b></span><b class="num">' + C.kor(C.have()) + '</b></div></div>';
 
-      h += '<div class="card"><div class="card-h"><h2>소득 · 용돈</h2></div>' +
+      h += '<div class="card' + dirtyCls('set') + '"><div class="card-h"><h2>소득 · 용돈</h2>' +
+        saveActions('set') + '</div>' +
         '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
         money('연소득', pend('set', 'annualIncome', st.annualIncome), 'data-set="annualIncome"', '예) 60000000') +
         '<div class="hint">' + (pend('set', 'annualIncome', st.annualIncome)
@@ -690,7 +697,7 @@
         '<div class="field"><label>월 저축액 직접 입력</label>' +
         money('월 저축액', pend('set', 'manualSaving', st.manualSaving), 'data-set="manualSaving"', '비워두면 자동') +
         '<div class="hint">비워두면 기록에서 자동 계산</div></div>' +
-        '</div>' + saveBar('set') + '</div>';
+        '</div></div>';
     }
 
     if (which === 'fixed') {
@@ -735,7 +742,8 @@
       var g = S.activeGoal();
       var pr = C.progress(g);
 
-      h += '<div class="card"><div class="card-h"><h2>대출 상품</h2></div>' +
+      h += '<div class="card' + dirtyCls('loan') + '"><div class="card-h"><h2>대출 조건</h2>' +
+        saveActions('loan') + '</div>' +
         '<div class="tiny muted" style="margin-bottom:10px">목표와 상관없이 한 번만 설정하면 모든 목표에 똑같이 적용됩니다.</div>' +
         '<div class="chips" style="margin-bottom:10px">' +
         S.PRODUCTS.map(function (x) {
@@ -762,7 +770,6 @@
         '<div class="field"><label>상품 대출 한도 (비우면 제한 없음)</label>' +
         money('대출 한도', lp('maxLoan'), 'data-loan="maxLoan" data-money="1"', '제한 없음') +
         '<div class="hint">' + (lp('maxLoan') ? C.kor(lp('maxLoan')) : '한도 제한 없음') + '</div></div>' +
-        saveBar('loan') +
         '<div class="hint">정책자금 조건은 공고에 따라 수시로 바뀝니다. 선택 후 실제 공고 기준으로 조정해서 쓰세요.</div></div>';
 
       h += '<div class="card"><div class="card-h"><h2>지금 조건으로 계산하면</h2>' +

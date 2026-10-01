@@ -438,10 +438,18 @@ html[data-theme="night"] .cal .c.today .e,html[data-theme="night"] .cal .c.today
 /* ---------- v7 : 토큰 입력 ---------- */
 textarea.masked{-webkit-text-security:disc;text-security:disc;color:var(--muted)}
 
-/* ---------- v8 : 저장 바 ---------- */
-.savebar{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-  background:var(--yellow);color:var(--on-accent);
-  border:var(--bw) solid var(--line);padding:9px 11px;margin:12px 0 4px;
+/* ---------- v8 : 저장 대기 섹션 ---------- */
+.card.dirty,.goalcard.dirty{box-shadow:0 0 0 3px var(--yellow),var(--shadow)}
+.goalcard.dirty>.gh{background:var(--yellow);color:var(--on-accent)}
+.saveact{flex:none}
+
+/* ---------- v8 : PC 에서 목표 3개 가로 배치 ---------- */
+.goalgrid{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:1100px){
+  .goalgrid.cols2{grid-template-columns:repeat(2,1fr)}
+  .goalgrid.cols3{grid-template-columns:repeat(3,1fr)}
+  .goalgrid.cols2 .goalcard,.goalgrid.cols3 .goalcard{margin-bottom:0}
+  .goalgrid.cols3 .g2,.goalgrid.cols3 .g3{grid-template-columns:1fr}
+  .goalgrid.cols3 .chip{font-size:10px;padding:4px 7px}
+  .goalgrid.cols3 .swatches button{width:22px;height:22px}
 }
-.savebar .tiny{flex:1;min-width:120px;font-weight:700}
