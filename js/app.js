@@ -62,13 +62,11 @@
       return;
     }
 
-    /* 목표별 대출 조건 */
-    if (el.dataset.gloan) {
-      var gl = S.state.goals.find(function (x) { return x.id === el.dataset.gloan; });
-      if (!gl) return;
-      var L = S.goalLoan(gl);
-      L[el.dataset.k] = el.dataset.money === '1' ? digits(el.value) : Number(el.value);
-      S.touchGoal(gl);
+    /* 대출 조건 (전역 1벌) */
+    if (el.dataset.loan) {
+      var L = S.loanCond();
+      L[el.dataset.loan] = el.dataset.money === '1' ? digits(el.value) : Number(el.value);
+      S.touchSettings();
       Sync.schedule();
       return;
     }
@@ -110,7 +108,7 @@
     var el = e.target;
     if (el.id === 'importFile') { readImport(el); return; }
     if (el.dataset && el.dataset.sync === 'auto') { UI.render(); return; }
-    if (el.dataset && (el.dataset.gid || el.dataset.gloan || el.dataset.set)) UI.render();
+    if (el.dataset && (el.dataset.gid || el.dataset.loan || el.dataset.set)) UI.render();
   });
 
   /* ---------- 클릭 ---------- */
@@ -122,6 +120,13 @@
 
     if (act.indexOf('nav:') === 0) {
       UI.view = act.slice(4);
+      UI.render({ top: true });
+      return;
+    }
+
+    /* 하위 탭 */
+    if (act.indexOf('sub:') === 0) {
+      UI.sub[act.slice(4)] = t.dataset.s;
       UI.render({ top: true });
       return;
     }
@@ -161,17 +166,6 @@
           gs.shape = t.dataset.s;
           gs.floors = Pixel.clampFloors(gs.shape, gs.floors);
           S.touchGoal(gs); UI.render(); Sync.schedule();
-        }
-        return;
-      }
-
-      case 'goal:product': {
-        var gp = S.state.goals.find(function (x) { return x.id === id; });
-        if (gp) {
-          var pr = S.applyProduct(gp, t.dataset.p);
-          UI.render();
-          UI.toast(pr.name + ' 조건을 적용했어요');
-          Sync.schedule();
         }
         return;
       }
@@ -286,6 +280,14 @@
 
       /* ---- 통계 ---- */
       case 'stat:mode': UI.statMode = t.dataset.m; UI.render(); return;
+      case 'chart:mode': UI.chartMode = t.dataset.m; UI.render(); return;
+
+      /* ---- 대출 조건 바로가기 ---- */
+      case 'go:loan':
+        UI.view = 'goals';
+        UI.sub.goals = 'loan';
+        UI.render({ top: true });
+        return;
 
       /* ---- 내역 ---- */
       case 'tx:new': UI.openTxSheet(null, t.dataset.d); return;

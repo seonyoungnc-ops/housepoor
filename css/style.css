@@ -346,3 +346,33 @@ html[data-theme="night"] .cal .c.today .e,html[data-theme="night"] .cal .c.today
 .fxrow .t b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fxrow .t span{font-size:10px;color:var(--muted)}
 .fxrow .a{font-weight:700;font-size:13px;white-space:nowrap}
+
+/* ---------- v4 : 하위 탭 ---------- */
+.subtabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:var(--bw) solid var(--line);padding-bottom:10px}
+.subtabs button{
+  flex:1;background:var(--panel);border:var(--bw) solid var(--line);box-shadow:var(--shadow-sm);
+  padding:8px 6px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);
+}
+.subtabs button.on{background:var(--yellow);color:var(--on-accent);transform:translate(1px,1px);box-shadow:1px 1px 0 var(--line)}
+
+/* ---------- v4 : 원형 차트 ---------- */
+.donutwrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.donut{width:170px;height:170px;flex:none;image-rendering:auto}
+.donut circle{stroke-linecap:butt}
+.donutwrap .legend{flex:1;min-width:180px}
+.donutwrap .lg{display:flex;align-items:center;gap:7px;font-size:11px;padding:3px 0}
+.donutwrap .sw{width:12px;height:12px;border:2px solid var(--line);flex:none}
+.donutwrap .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.donutwrap .lg b{width:38px;text-align:right}
+.donutwrap .am{width:74px;text-align:right;color:var(--muted)}
+
+/* ---------- v4 : 박스(면적) 차트 ---------- */
+.treemap{display:flex;flex-direction:column;gap:3px;height:260px}
+.trow{display:flex;gap:3px;min-height:34px}
+.tbox{
+  border:2px solid var(--line);padding:5px 6px;overflow:hidden;min-width:0;
+  display:flex;flex-direction:column;justify-content:center;color:var(--on-accent);
+}
+.tbox b{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.tbox span{font-size:10px;line-height:1.3;white-space:nowrap;overflow:hidden}
+.tbox .pct{opacity:.65}

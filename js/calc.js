@@ -104,7 +104,7 @@
   /* 대출 한도 계산 : LTV · DSR · 상품 한도 중 가장 낮은 값 */
   function loan(goal) {
     var st = Store.state.settings;
-    var L = Store.goalLoan(goal);
+    var L = Store.loanCond();
     var prod = Store.product(L.product);
     var price = Number(goal && goal.price) || 0;
     var i = (Number(L.rate) || 0) / 100 / 12;

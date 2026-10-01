@@ -15,6 +15,8 @@
     cal: new Date(),
     calSel: null,
     statMode: 'month',
+    chartMode: 'bar',
+    sub: { ledger: 'calendar', money: 'assets', goals: 'list' },
     editing: null,
     draft: null,
     installEvt: null,
@@ -23,11 +25,34 @@
 
   var TABS = [
     { id: 'home', name: '홈', spr: 'tower' },
-    { id: 'calendar', name: '달력', spr: 'cal' },
-    { id: 'stats', name: '통계', spr: 'chart' },
+    { id: 'ledger', name: '가계부', spr: 'cal' },
+    { id: 'money', name: '자산', spr: 'piggy' },
     { id: 'goals', name: '목표', spr: 'house' },
     { id: 'settings', name: '설정', spr: 'gear' }
   ];
+
+  /* 각 탭 안의 하위 탭 */
+  var SUBS = {
+    ledger: [{ id: 'calendar', name: '달력' }, { id: 'stats', name: '통계' }],
+    money: [{ id: 'assets', name: '내 자산' }, { id: 'fixed', name: '고정지출' }],
+    goals: [{ id: 'list', name: '목표 아파트' }, { id: 'loan', name: '대출 조건' }]
+  };
+
+  function subTabs(view) {
+    var list = SUBS[view];
+    if (!list) return '';
+    var cur = UI.sub[view] || list[0].id;
+    return '<div class="subtabs">' + list.map(function (t) {
+      return '<button class="' + (cur === t.id ? 'on' : '') + '" data-act="sub:' + view + '" data-s="' + t.id + '">' +
+        esc(t.name) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function subOf(view) {
+    var list = SUBS[view];
+    return (UI.sub[view] && list.some(function (t) { return t.id === UI.sub[view]; }))
+      ? UI.sub[view] : list[0].id;
+  }
 
   var TYPE_META = {
     expense: { name: '지출', cls: 'exp', sign: '-' },
@@ -146,7 +171,7 @@
     h += '</div>';
 
     h += '<div class="card"><div class="card-h"><h2>대출·자금 계획</h2>' +
-      '<button class="btn sm" data-act="nav:goals">조건 수정</button></div>' +
+      '<button class="btn sm" data-act="go:loan">조건 수정</button></div>' +
       '<div class="row wrap" style="margin-bottom:8px"><span class="tag big">' + esc(p.loan.product.name) + '</span>' +
       '<span class="tag">금리 ' + p.loan.cond.rate + '%</span>' +
       '<span class="tag">' + p.loan.cond.years + '년</span></div>';
@@ -206,7 +231,7 @@
 
     var recent = S.state.tx.slice(0, 5);
     h += '<div class="card"><div class="card-h"><h2>최근 내역</h2>' +
-      '<button class="btn sm" data-act="nav:calendar">전체보기</button></div>';
+      '<button class="btn sm" data-act="nav:ledger">전체보기</button></div>';
     h += recent.length ? recent.map(txRow).join('')
       : '<div class="empty">아직 기록이 없어요.<br>오른쪽 아래 + 버튼으로 첫 내역을 남겨보세요!</div>';
     h += '</div>';
@@ -285,6 +310,13 @@
     return String(n);
   }
 
+  /* ---------- 가계부 : 달력 / 통계 ---------- */
+  function viewLedger() {
+    var which = subOf('ledger');
+    var inner = which === 'stats' ? viewStats() : viewCalendar();
+    return { html: subTabs('ledger') + inner.html, after: inner.after };
+  }
+
   /* ---------- 통계 ---------- */
   function viewStats() {
     var mode = UI.statMode;
@@ -351,20 +383,94 @@
         '<div class="hint">세 가지 모두 이번 달 용돈(예산)에서 차감됩니다</div></div>';
     }
 
-    h += '<div class="card"><div class="card-h"><h2>카테고리별 지출</h2></div>';
+    h += '<div class="card"><div class="card-h"><h2>카테고리별 지출</h2>' +
+      '<div class="chips">' +
+      [['bar', '막대'], ['donut', '원형'], ['box', '박스']].map(function (x) {
+        return '<button class="chip ' + (UI.chartMode === x[0] ? 'on' : '') +
+          '" data-act="chart:mode" data-m="' + x[0] + '">' + x[1] + '</button>';
+      }).join('') + '</div></div>';
     if (!cats.length) h += '<div class="empty">지출 기록이 없어요</div>';
-    else h += cats.map(function (c) {
-      return '<div class="catrow">' + spr(c.meta.spr) +
-        '<div class="n">' + esc(c.meta.name) + '</div>' +
-        '<div class="bar"><i style="width:' + Math.max(3, Math.round(c.amount / catMax * 100)) + '%"></i></div>' +
-        '<div class="v num">' + C.fmt(c.amount) + '</div></div>';
-    }).join('');
+    else h += catChart(cats, catMax);
     h += '</div>';
     return { html: h };
   }
 
-  /* ---------- 목표 ---------- */
-  function viewGoals() {
+  /* ---------- 카테고리 차트 ---------- */
+  var CHART_COLORS = ['#f2938c', '#f7c48d', '#ffe08a', '#9ad693', '#9cc9f0',
+    '#c9adf2', '#f7b3cb', '#e0bb8e', '#b6ddc3', '#a9c4e2', '#dcc9a2'];
+
+  function catChart(cats, catMax) {
+    if (UI.chartMode === 'donut') return donutChart(cats);
+    if (UI.chartMode === 'box') return boxChart(cats);
+    return cats.map(function (c, i) {
+      return '<div class="catrow">' + spr(c.meta.spr) +
+        '<div class="n">' + esc(c.meta.name) + '</div>' +
+        '<div class="bar"><i style="width:' + Math.max(3, Math.round(c.amount / catMax * 100)) +
+        '%;background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></i></div>' +
+        '<div class="v num">' + C.fmt(c.amount) + '</div></div>';
+    }).join('');
+  }
+
+  function donutChart(cats) {
+    var total = cats.reduce(function (a, c) { return a + c.amount; }, 0) || 1;
+    var R = 60, CIRC = 2 * Math.PI * R, off = 0;
+    var arcs = cats.map(function (c, i) {
+      var len = c.amount / total * CIRC;
+      var seg = '<circle cx="80" cy="80" r="' + R + '" fill="none" stroke="' +
+        CHART_COLORS[i % CHART_COLORS.length] + '" stroke-width="30"' +
+        ' stroke-dasharray="' + len.toFixed(2) + ' ' + (CIRC - len).toFixed(2) + '"' +
+        ' stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 80 80)"></circle>';
+      off += len;
+      return seg;
+    }).join('');
+
+    return '<div class="donutwrap">' +
+      '<svg viewBox="0 0 160 160" class="donut" role="img" aria-label="카테고리별 지출 원형 차트">' +
+      '<circle cx="80" cy="80" r="' + R + '" fill="none" stroke="var(--panel-2)" stroke-width="30"></circle>' +
+      arcs + '</svg>' +
+      '<div class="legend">' + cats.map(function (c, i) {
+        return '<div class="lg"><span class="sw" style="background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></span>' +
+          '<span class="nm">' + esc(c.meta.name) + '</span>' +
+          '<b class="num">' + Math.round(c.amount / total * 100) + '%</b>' +
+          '<span class="am num">' + C.fmt(c.amount) + '</span></div>';
+      }).join('') + '</div></div>';
+  }
+
+  /* 면적이 금액에 비례하는 네모 배치 (squarified treemap 간소화) */
+  function boxChart(cats) {
+    var total = cats.reduce(function (a, c) { return a + c.amount; }, 0) || 1;
+    var rows = [], cur = [], curSum = 0;
+    var target = total / Math.max(2, Math.ceil(Math.sqrt(cats.length)));
+    cats.forEach(function (c) {
+      cur.push(c);
+      curSum += c.amount;
+      if (curSum >= target && cur.length) { rows.push({ items: cur, sum: curSum }); cur = []; curSum = 0; }
+    });
+    if (cur.length) rows.push({ items: cur, sum: curSum });
+
+    var idx = 0;
+    return '<div class="treemap">' + rows.map(function (r) {
+      return '<div class="trow" style="flex:' + (r.sum / total).toFixed(4) + '">' +
+        r.items.map(function (c) {
+          var color = CHART_COLORS[idx++ % CHART_COLORS.length];
+          var pct = Math.round(c.amount / total * 100);
+          return '<div class="tbox" style="flex:' + (c.amount / r.sum).toFixed(4) +
+            ';background:' + color + '" title="' + esc(c.meta.name) + ' ' + C.fmt(c.amount) + '원">' +
+            '<b>' + esc(c.meta.name) + '</b>' +
+            '<span class="num">' + C.fmt(c.amount) + '</span>' +
+            '<span class="pct">' + pct + '%</span></div>';
+        }).join('') + '</div>';
+    }).join('') + '</div>';
+  }
+
+  /* ---------- 목표 : 목표 아파트 / 대출 조건 ---------- */
+  function viewGoalsTab() {
+    var which = subOf('goals');
+    var inner = which === 'loan' ? viewLoanCond() : viewGoalList();
+    return { html: subTabs('goals') + inner.html, after: inner.after };
+  }
+
+  function viewGoalList() {
     var goals = S.goalsSorted();
     var h = '<div class="card"><div class="card-h"><h2>목표 아파트</h2>' +
       (goals.length < 3 ? '<button class="btn sm p" data-act="goal:add">+ 목표 추가</button>' : '<span class="tag">최대 3개</span>') +
@@ -414,42 +520,19 @@
             ' class="' + (g.theme === t.id ? 'on' : '') + '" style="background:' + t.body + '"></button>';
         }).join('') + '</div></div>';
 
-      var L = S.goalLoan(g);
-      var prod = S.product(L.product);
-      h += '<div class="divider"></div>' +
-        '<div class="card-h"><h2>이 집의 대출 조건</h2></div>' +
-        '<div class="chips" style="margin-bottom:8px">' +
-        S.PRODUCTS.map(function (pr) {
-          return '<button class="chip ' + (L.product === pr.id ? 'on' : '') + '" data-act="goal:product" data-id="' + g.id + '" data-p="' + pr.id + '">' +
-            esc(pr.name) + '</button>';
-        }).join('') + '</div>' +
-        '<div class="note-box">' + esc(prod.note) + '</div>';
-
+      h += '<div class="divider"></div>';
       p.loan.warnings.forEach(function (w) {
         h += '<div class="warn-box">⚠ ' + esc(w) + '</div>';
       });
 
-      h += '<div class="g3" style="margin-top:10px">' +
-        '<div class="field"><label>LTV (%)</label><input type="number" min="0" max="100" step="1" value="' + L.ltv + '" data-gloan="' + g.id + '" data-k="ltv"></div>' +
-        '<div class="field"><label>금리 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + L.rate + '" data-gloan="' + g.id + '" data-k="rate"></div>' +
-        '<div class="field"><label>기간 (년)</label><input type="number" min="1" max="50" step="1" value="' + L.years + '" data-gloan="' + g.id + '" data-k="years"></div>' +
-        '</div><div class="g2">' +
-        '<div class="field"><label>DSR (%) · 0이면 미적용</label><input type="number" min="0" max="100" step="1" value="' + L.dsr + '" data-gloan="' + g.id + '" data-k="dsr"></div>' +
-        '<div class="field"><label>부대비용 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + L.extraRate + '" data-gloan="' + g.id + '" data-k="extraRate"></div>' +
-        '</div>' +
-        '<div class="field"><label>상품 대출 한도 (비우면 제한 없음)</label>' +
-        money('대출 한도', L.maxLoan, 'data-gloan="' + g.id + '" data-k="maxLoan"', '제한 없음') +
-        '<div class="hint">' + (L.maxLoan ? C.kor(L.maxLoan) : '한도 제한 없음') + '</div></div>';
-
-      h += '<div class="divider"></div>' +
-        '<div class="kv"><span>받을 수 있는 대출 <span class="tag">' + esc(p.loan.capBy) + '</span></span><b class="num">' + C.kor(p.loan.amount) + '</b></div>' +
+      h += '<div class="kv"><span>받을 수 있는 대출 <span class="tag">' + esc(p.loan.capBy) + '</span></span><b class="num">' + C.kor(p.loan.amount) + '</b></div>' +
         '<div class="kv"><span>예상 월 상환액</span><b class="num">' + C.won(p.loan.monthlyPayment) + '</b></div>' +
         '<div class="kv"><span>필요 자기자본</span><b class="num">' + C.kor(p.loan.needCash) + '</b></div>' +
         '<div class="kv"><span>남은 금액</span><b class="num">' + C.kor(p.short) + '</b></div>' +
         '<div class="kv"><span>달성 예상</span><b>' +
         (p.eta ? (p.eta.done ? '달성!' : (p.eta.tooLong ? '50년 이상' : p.eta.monthsR + '개월 후 (' + p.eta.date + ')')) : '-') + '</b></div>' +
         '<div class="gap"></div>' + pbar(p.ratio, 'sm') +
-        '<div class="hint">진행률 ' + Math.floor(p.ratio * 100) + '%</div>';
+        '<div class="hint">진행률 ' + Math.floor(p.ratio * 100) + '% · 대출 조건은 위 <b>대출 조건</b> 탭에서 한 번만 설정합니다</div>';
 
       h += '</div></div>';
     });
@@ -464,6 +547,111 @@
         });
       }
     };
+  }
+
+  /* ---------- 자산 : 내 자산 / 고정지출 ---------- */
+  function viewMoney() {
+    var which = subOf('money');
+    var st = S.state.settings;
+    var h = subTabs('money');
+
+    if (which === 'assets') {
+    h += '<div class="card"><div class="card-h"><h2>내 자산 · 소득</h2></div>' +
+      '<div class="field"><label>현재 모아둔 돈 (시드머니)</label>' +
+      money('시드머니', st.seed, 'data-set="seed"', '예) 50000000') +
+      '<div class="hint">' + (st.seed ? C.kor(st.seed) : '기록을 시작하기 전까지 모아둔 금액') + '</div></div>' +
+      '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
+      money('연소득', st.annualIncome, 'data-set="annualIncome"', '예) 60000000') +
+      '<div class="hint">' + (st.annualIncome ? C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용'
+        : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
+      '<div class="g2">' +
+      '<div class="field"><label>기본 용돈 (매달 기본값)</label>' + money('기본 용돈', st.monthlyBudget, 'data-set="monthlyBudget"', '예) 500000') +
+      '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) + ' · 달마다 다르게 쓰려면 홈에서 "용돈 수정"' : '설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
+      '<div class="field"><label>월 저축액 직접 입력</label>' + money('월 저축액', st.manualSaving, 'data-set="manualSaving"', '비워두면 자동') +
+      '<div class="hint">0이면 기록에서 자동 계산</div></div>' +
+      '</div></div>';
+    }
+
+    if (which === 'fixed') {
+    /* 고정지출 */
+    var fx = S.fixedList();
+    var fxTotal = S.fixedTotal();
+    var ymNow = S.monthKey();
+    var fxDone = S.fixedDone(ymNow);
+    h += '<div class="card"><div class="card-h"><h2>고정지출</h2>' +
+      '<button class="btn sm p" data-act="fx:add">+ 추가</button></div>';
+    if (!fx.length) {
+      h += '<div class="empty">차 할부·구독료·통신비처럼 매달 같은 금액으로 나가는 지출을 등록해 두세요</div>';
+    } else {
+      h += fx.map(function (f) {
+        var c = S.cat('expense', f.cat);
+        var on = !!fxDone[f.id];
+        return '<div class="fxrow" data-act="fx:edit" data-id="' + f.id + '">' +
+          spr(c.spr) +
+          '<div class="t"><b>' + esc(f.name || c.name) + '</b>' +
+          '<span>' + esc(c.name) + ' · 매월 ' + f.day + '일 · ' + esc(S.method(f.method).short) + '</span></div>' +
+          '<div class="a exp num">' + C.fmt(f.amount) + '</div>' +
+          '<span class="tag">' + (on ? '기록됨' : '대기') + '</span></div>';
+      }).join('');
+      h += '<div class="divider"></div>' +
+        '<div class="kv"><span>월 고정지출 합계</span><b class="num a exp">' + C.fmt(fxTotal) + '원</b></div>' +
+        '<button class="btn b block" data-act="fx:apply" style="margin-top:10px">' +
+        (ymNow.slice(5) * 1) + '월 고정지출 기록하기</button>' +
+        '<div class="hint">아직 기록되지 않은 항목만 추가됩니다. 중복 기록되지 않아요.</div>';
+    }
+    h += '</div>';
+    }
+
+    return { html: h };
+  }
+
+  /* ---------- 대출 조건 (목표 공통, 한 번만 작성) ---------- */
+  function viewLoanCond() {
+    var h = '';
+      var L = S.loanCond();
+      var prod = S.product(L.product);
+      var g = S.activeGoal();
+      var pr = C.progress(g);
+
+      h += '<div class="card"><div class="card-h"><h2>대출 상품</h2></div>' +
+        '<div class="tiny muted" style="margin-bottom:10px">목표와 상관없이 한 번만 설정하면 모든 목표에 똑같이 적용됩니다.</div>' +
+        '<div class="chips" style="margin-bottom:10px">' +
+        S.PRODUCTS.map(function (x) {
+          return '<button class="chip ' + (L.product === x.id ? 'on' : '') + '" data-act="set:product" data-p="' + x.id + '">' +
+            esc(x.name) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="note-box">' + esc(prod.note) + '</div>';
+
+      if (prod.priceCap > 0 || prod.incomeCap > 0) {
+        h += '<div class="row wrap tiny" style="margin:8px 0 2px">' +
+          (prod.priceCap ? '<span class="tag">주택가격 ' + C.kor(prod.priceCap) + ' 이하</span>' : '') +
+          (prod.incomeCap ? '<span class="tag">연소득 ' + C.kor(prod.incomeCap) + ' 이하</span>' : '') +
+          '</div>';
+      }
+
+      h += '<div class="g3" style="margin-top:10px">' +
+        '<div class="field"><label>LTV (%)</label><input type="number" min="0" max="100" step="1" value="' + L.ltv + '" data-loan="ltv"></div>' +
+        '<div class="field"><label>금리 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + L.rate + '" data-loan="rate"></div>' +
+        '<div class="field"><label>기간 (년)</label><input type="number" min="1" max="50" step="1" value="' + L.years + '" data-loan="years"></div>' +
+        '</div><div class="g2">' +
+        '<div class="field"><label>DSR (%) · 0이면 미적용</label><input type="number" min="0" max="100" step="1" value="' + L.dsr + '" data-loan="dsr"></div>' +
+        '<div class="field"><label>부대비용 (%)</label><input type="number" min="0" max="20" step="0.1" value="' + L.extraRate + '" data-loan="extraRate"></div>' +
+        '</div>' +
+        '<div class="field"><label>상품 대출 한도 (비우면 제한 없음)</label>' +
+        money('대출 한도', L.maxLoan, 'data-loan="maxLoan" data-money="1"', '제한 없음') +
+        '<div class="hint">' + (L.maxLoan ? C.kor(L.maxLoan) : '한도 제한 없음') + '</div></div>' +
+        '<div class="hint">정책자금 조건은 공고에 따라 수시로 바뀝니다. 선택 후 실제 공고 기준으로 조정해서 쓰세요.</div></div>';
+
+      h += '<div class="card"><div class="card-h"><h2>지금 조건으로 계산하면</h2>' +
+        '<span class="tag">' + esc(g.name || '1순위 목표') + '</span></div>';
+      pr.loan.warnings.forEach(function (w) {
+        h += '<div class="warn-box">⚠ ' + esc(w) + '</div>';
+      });
+      h += '<div class="kv"><span>집값</span><b class="num">' + C.kor(pr.loan.price) + '</b></div>' +
+        '<div class="kv"><span>받을 수 있는 대출 <span class="tag">' + esc(pr.loan.capBy) + '</span></span><b class="num">' + C.kor(pr.loan.amount) + '</b></div>' +
+        '<div class="kv"><span>예상 월 상환액</span><b class="num">' + C.won(pr.loan.monthlyPayment) + '</b></div>' +
+        '<div class="kv"><span>필요 자기자본</span><b class="num">' + C.kor(pr.loan.needCash) + '</b></div></div>';
+    return { html: h };
   }
 
   /* ---------- 설정 ---------- */
@@ -515,49 +703,6 @@
       '<div class="warn-box">⚠ 토큰은 이 기기의 브라우저에 그대로 저장됩니다. 반드시 <b>비공개 저장소 1개에만</b> 권한을 준 fine-grained 토큰을 쓰고, 기기를 공유하지 마세요.</div>' +
       '</div>';
 
-    h += '<div class="card"><div class="card-h"><h2>내 자산 · 소득</h2></div>' +
-      '<div class="field"><label>현재 모아둔 돈 (시드머니)</label>' +
-      money('시드머니', st.seed, 'data-set="seed"', '예) 50000000') +
-      '<div class="hint">' + (st.seed ? C.kor(st.seed) : '기록을 시작하기 전까지 모아둔 금액') + '</div></div>' +
-      '<div class="field"><label>연소득 (세전 · 부부합산)</label>' +
-      money('연소득', st.annualIncome, 'data-set="annualIncome"', '예) 60000000') +
-      '<div class="hint">' + (st.annualIncome ? C.kor(st.annualIncome) + ' · DSR·정책자금 요건 계산에 사용'
-        : 'DSR·정책자금 요건 계산에 사용돼요') + '</div></div>' +
-      '<div class="g2">' +
-      '<div class="field"><label>기본 용돈 (매달 기본값)</label>' + money('기본 용돈', st.monthlyBudget, 'data-set="monthlyBudget"', '예) 500000') +
-      '<div class="hint">' + (st.monthlyBudget ? C.kor(st.monthlyBudget) + ' · 달마다 다르게 쓰려면 홈에서 "용돈 수정"' : '설정하면 홈에 남은 용돈이 표시돼요') + '</div></div>' +
-      '<div class="field"><label>월 저축액 직접 입력</label>' + money('월 저축액', st.manualSaving, 'data-set="manualSaving"', '비워두면 자동') +
-      '<div class="hint">0이면 기록에서 자동 계산</div></div>' +
-      '</div></div>';
-
-    /* 고정지출 */
-    var fx = S.fixedList();
-    var fxTotal = S.fixedTotal();
-    var ymNow = S.monthKey();
-    var fxDone = S.fixedDone(ymNow);
-    h += '<div class="card"><div class="card-h"><h2>고정지출</h2>' +
-      '<button class="btn sm p" data-act="fx:add">+ 추가</button></div>';
-    if (!fx.length) {
-      h += '<div class="empty">차 할부·구독료·통신비처럼 매달 같은 금액으로 나가는 지출을 등록해 두세요</div>';
-    } else {
-      h += fx.map(function (f) {
-        var c = S.cat('expense', f.cat);
-        var on = !!fxDone[f.id];
-        return '<div class="fxrow" data-act="fx:edit" data-id="' + f.id + '">' +
-          spr(c.spr) +
-          '<div class="t"><b>' + esc(f.name || c.name) + '</b>' +
-          '<span>' + esc(c.name) + ' · 매월 ' + f.day + '일 · ' + esc(S.method(f.method).short) + '</span></div>' +
-          '<div class="a exp num">' + C.fmt(f.amount) + '</div>' +
-          '<span class="tag">' + (on ? '기록됨' : '대기') + '</span></div>';
-      }).join('');
-      h += '<div class="divider"></div>' +
-        '<div class="kv"><span>월 고정지출 합계</span><b class="num a exp">' + C.fmt(fxTotal) + '원</b></div>' +
-        '<button class="btn b block" data-act="fx:apply" style="margin-top:10px">' +
-        (ymNow.slice(5) * 1) + '월 고정지출 기록하기</button>' +
-        '<div class="hint">아직 기록되지 않은 항목만 추가됩니다. 중복 기록되지 않아요.</div>';
-    }
-    h += '</div>';
-
     h += '<div class="card"><div class="card-h"><h2>앱 · 데이터</h2></div>' +
       '<div class="row wrap" style="gap:8px">' +
       '<button class="btn b" data-act="set:install">' +
@@ -571,7 +716,7 @@
       '<div class="hint">데이터는 이 기기의 브라우저에 저장되고, 동기화를 켜면 지정한 저장소에도 올라갑니다.</div></div>';
 
     h += '<div class="card"><div class="card-h"><h2>정보</h2></div>' +
-      '<div class="tiny muted">하우스푸어 v3.0<br>' +
+      '<div class="tiny muted">하우스푸어 v4.0<br>' +
       '폰트: JayeonSans (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
       '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div>' +
       (UI.errors && UI.errors.length
@@ -675,7 +820,7 @@
   }
 
   /* ---------- 렌더 ---------- */
-  var VIEWS = { home: viewHome, calendar: viewCalendar, stats: viewStats, goals: viewGoals, settings: viewSettings };
+  var VIEWS = { home: viewHome, ledger: viewLedger, money: viewMoney, goals: viewGoalsTab, settings: viewSettings };
 
   function renderNav() {
     var mk = function (t) {

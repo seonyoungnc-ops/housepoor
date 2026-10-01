@@ -3,7 +3,7 @@
   'use strict';
 
   var KEY = 'phb.v1';
-  var VERSION = 3;
+  var VERSION = 4;
 
   var CATS = {
     expense: [
@@ -88,6 +88,13 @@
     { id: 'debit', name: '체크카드', short: '체크', spr: 'cardd' }
   ];
 
+  function pick() {
+    for (var i = 0; i < arguments.length; i++) {
+      if (arguments[i] != null) return arguments[i];
+    }
+    return null;
+  }
+
   function defaultLoan() {
     var p = PRODUCTS[0];
     return {
@@ -117,7 +124,7 @@
       goals: [{
         id: uid(), rank: 1, name: '', price: 0,
         region: '', size: '', shape: 'tower', floors: 12, theme: 'brick', memo: '',
-        loan: defaultLoan(), updatedAt: t
+        updatedAt: t
       }],
       activeGoal: null,
       tx: [],
@@ -130,6 +137,7 @@
         budgets: {},
         manualSaving: 0,
         fixed: [],
+        loan: defaultLoan(),
         updatedAt: t
       },
       theme: 'day',
@@ -157,23 +165,27 @@
     s.goals.forEach(function (g) {
       if (!g.shape) g.shape = 'tower';
       g.floors = global.Pixel ? Pixel.clampFloors(g.shape, g.floors) : (g.floors || 10);
-      /* v2 → v3 : 전역 대출 설정을 목표별로 옮긴다 */
-      if (!g.loan) {
-        var d = defaultLoan();
-        g.loan = {
-          product: old.product || d.product,
-          ltv: old.ltv != null ? old.ltv : d.ltv,
-          rate: old.rate != null ? old.rate : d.rate,
-          years: old.years != null ? old.years : d.years,
-          dsr: old.dsr != null ? old.dsr : d.dsr,
-          maxLoan: old.maxLoan != null ? old.maxLoan : d.maxLoan,
-          extraRate: old.extraRate != null ? old.extraRate : d.extraRate
-        };
-      }
       if (!g.updatedAt) g.updatedAt = now();
     });
     s.settings.budgets = s.settings.budgets || {};
     s.settings.fixed = Array.isArray(s.settings.fixed) ? s.settings.fixed : [];
+
+    /* 대출 조건은 전역 1벌로 관리한다.
+       v2(전역 필드) / v3(목표별 loan) 어느 쪽에서 와도 하나로 모은다. */
+    if (!s.settings.loan) {
+      var d = defaultLoan();
+      var fromGoal = (s.goals.find(function (g) { return g.loan; }) || {}).loan || {};
+      s.settings.loan = {
+        product: fromGoal.product || old.product || d.product,
+        ltv: pick(fromGoal.ltv, old.ltv, d.ltv),
+        rate: pick(fromGoal.rate, old.rate, d.rate),
+        years: pick(fromGoal.years, old.years, d.years),
+        dsr: pick(fromGoal.dsr, old.dsr, d.dsr),
+        maxLoan: pick(fromGoal.maxLoan, old.maxLoan, d.maxLoan),
+        extraRate: pick(fromGoal.extraRate, old.extraRate, d.extraRate)
+      };
+    }
+    s.goals.forEach(function (g) { delete g.loan; });
     ['product', 'ltv', 'rate', 'years', 'dsr', 'maxLoan', 'extraRate'].forEach(function (k) {
       delete s.settings[k];
     });
@@ -247,12 +259,10 @@
     var used = state.goals.map(function (g) { return g.rank; });
     var rank = 1;
     while (used.indexOf(rank) >= 0) rank++;
-    var base = activeGoal();
     var g = {
       id: uid(), rank: rank, name: '', price: 0,
       region: '', size: '', shape: 'tower', floors: 12,
       theme: THEMES[state.goals.length % THEMES.length].id, memo: '',
-      loan: base && base.loan ? Object.assign({}, base.loan) : defaultLoan(),
       updatedAt: now()
     };
     state.goals.push(g);
@@ -393,15 +403,15 @@
   function product(id) {
     return PRODUCTS.find(function (p) { return p.id === id; }) || PRODUCTS[0];
   }
-  function goalLoan(g) {
-    if (!g) return defaultLoan();
-    if (!g.loan) g.loan = defaultLoan();
-    return g.loan;
+  /* 대출 조건 : 목표와 무관하게 전역 1벌 */
+  function loanCond() {
+    if (!state.settings.loan) state.settings.loan = defaultLoan();
+    return state.settings.loan;
   }
 
-  function applyProduct(g, id) {
+  function applyProduct(id) {
     var p = product(id);
-    var L = goalLoan(g);
+    var L = loanCond();
     L.product = id;
     if (id !== 'custom') {
       L.rate = p.rate;
@@ -410,7 +420,7 @@
       L.dsr = p.dsr;
       L.maxLoan = p.maxLoan;
     }
-    touchGoal(g);
+    touchSettings();
     return p;
   }
 
@@ -526,7 +536,7 @@
     addMember: addMember, removeMember: removeMember, member: member, meMember: meMember,
     sharedPayload: sharedPayload, mergeRemote: mergeRemote,
     catList: catList, cat: cat, theme: theme, method: method, product: product,
-    applyProduct: applyProduct, goalLoan: goalLoan, defaultLoan: defaultLoan,
+    applyProduct: applyProduct, loanCond: loanCond, defaultLoan: defaultLoan,
     monthKey: monthKey, budgetFor: budgetFor, hasOwnBudget: hasOwnBudget, setBudget: setBudget,
     fixedList: fixedList, addFixed: addFixed, updateFixed: updateFixed, removeFixed: removeFixed,
     fixedTotal: fixedTotal, fixedDone: fixedDone,
