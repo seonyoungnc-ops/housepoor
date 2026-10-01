@@ -1,10 +1,8 @@
 /* ===== 하우스푸어 : pixel-art stylesheet ===== */
-@font-face{font-family:'Galmuri';font-weight:400;font-display:swap;
-  src:url('../fonts/Galmuri11.woff2') format('woff2'),
-      url('https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11.woff2') format('woff2')}
-@font-face{font-family:'Galmuri';font-weight:700;font-display:swap;
-  src:url('../fonts/Galmuri11-Bold.woff2') format('woff2'),
-      url('https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11-Bold.woff2') format('woff2')}
+@font-face{font-family:'JayeonSans';font-weight:400;font-style:normal;font-display:swap;
+  src:url('../fonts/JayeonSans-Regular.woff2') format('woff2')}
+@font-face{font-family:'JayeonSans';font-weight:500 700;font-style:normal;font-display:swap;
+  src:url('../fonts/JayeonSans-Medium.woff2') format('woff2')}
 
 :root{
   --ink:#4a4458;
@@ -51,11 +49,12 @@ html[data-theme="night"]{
 html{scrollbar-gutter:stable;overflow-y:scroll}
 html,body{margin:0;padding:0}
 body{
-  font-family:'Galmuri','Apple SD Gothic Neo','Malgun Gothic',monospace;
+  font-family:'JayeonSans','Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
   background:var(--paper);
   color:var(--ink);
   font-size:14px;line-height:1.7;
-  -webkit-font-smoothing:none;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
   -webkit-tap-highlight-color:transparent;
   overflow-x:hidden;
 }

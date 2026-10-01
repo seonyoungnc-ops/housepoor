@@ -1,23 +1,21 @@
 /* 하우스푸어 : 오프라인 캐시 */
-var CACHE = 'housepoor-v12';
+var CACHE = 'housepoor-v14';
 var ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './css/style.css?v=12',
-  './js/sprites.js?v=12',
-  './js/store.js?v=12',
-  './js/calc.js?v=12',
-  './js/pixel.js?v=12',
-  './js/sync.js?v=12',
-  './js/ui.js?v=12',
-  './js/app.js?v=12',
-  './fonts/Galmuri11.woff2',
-  './fonts/Galmuri11-Bold.woff2',
+  './css/style.css?v=14',
+  './js/sprites.js?v=14',
+  './js/store.js?v=14',
+  './js/calc.js?v=14',
+  './js/pixel.js?v=14',
+  './js/sync.js?v=14',
+  './js/ui.js?v=14',
+  './js/app.js?v=14',
+  './fonts/JayeonSans-Regular.woff2',
+  './fonts/JayeonSans-Medium.woff2',
   './icons/icon.svg',
-  './icons/icon-maskable.svg',
-  'https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11.woff2',
-  'https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11-Bold.woff2'
+  './icons/icon-maskable.svg'
 ];
 
 self.addEventListener('install', function (e) {

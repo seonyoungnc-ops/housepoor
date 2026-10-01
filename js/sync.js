@@ -30,11 +30,30 @@
       encodeURIComponent(c.path || 'housepoor.json').replace(/%2F/g, '/');
   }
 
+  /* 붙여넣기 과정에서 섞이는 공백·제로폭·비가시 문자를 제거한다.
+     이게 남아 있으면 fetch 가 헤더를 만들다 TypeError 를 던진다. */
+  function cleanToken(raw) {
+    /* 공백류 + NBSP + 제로폭 문자 + BOM */
+    return String(raw || '').replace(/[\s ​-‍⁠﻿]/g, '');
+  }
+
+  function tokenIssue() {
+    var t = cleanToken(cfg().token);
+    if (!t) return '토큰이 비어 있어요';
+    /* HTTP 헤더에 넣을 수 있는 건 출력 가능한 ASCII 뿐 */
+    if (!/^[!-~]+$/.test(t)) {
+      return '토큰에 쓸 수 없는 문자가 섞여 있어요. 토큰 칸을 비우고 다시 붙여넣어 주세요';
+    }
+    if (!/^(github_pat_|ghp_|gho_|ghs_|ghu_)/.test(t)) {
+      return '토큰 형식이 아니에요. github_pat_ 으로 시작하는 값을 넣어주세요';
+    }
+    return null;
+  }
+
   function headers() {
     return {
-      'Authorization': 'Bearer ' + String(cfg().token || '').replace(/\s+/g, ''),
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
+      'Authorization': 'Bearer ' + cleanToken(cfg().token),
+      'Accept': 'application/vnd.github+json'
     };
   }
 
@@ -146,6 +165,8 @@
   function test() {
     var c = cfg();
     if (!c.repo || !c.token) { UI.toast('저장소와 토큰을 모두 입력해 주세요'); return; }
+    var bad = tokenIssue();
+    if (bad) { report(bad); return; }
 
     var repo = String(c.repo).trim()
       .replace(/^https?:\/\/github\.com\//i, '')
@@ -236,6 +257,38 @@
       .catch(function () { return null; });
   }
 
+  /* 단계별 진단 : 어느 지점에서 막히는지 확인한다 */
+  function diagnose() {
+    var steps = [];
+    var repo = String(cfg().repo || '').trim();
+    var tok = cleanToken(cfg().token);
+
+    steps.push(['토큰 형식', tokenIssue() ? '✗ ' + tokenIssue() : '✓ ' + tok.length + '자']);
+
+    function probe(label, url, opt) {
+      return fetch(url, opt).then(function (r) {
+        steps.push([label, '✓ HTTP ' + r.status]);
+      }).catch(function (e) {
+        steps.push([label, '✗ ' + (e && e.name) + ': ' + (e && e.message)]);
+      });
+    }
+
+    return probe('1. 인증 없이 호출', API + '/rate_limit', { cache: 'no-store' })
+      .then(function () {
+        /* 커스텀 헤더가 붙으면 브라우저가 사전 요청(OPTIONS)을 보낸다 */
+        return probe('2. 사전요청(CORS)', API + '/rate_limit',
+          { cache: 'no-store', headers: { 'Accept': 'application/vnd.github+json', 'X-Probe': '1' } });
+      })
+      .then(function () {
+        return probe('3. 토큰으로 호출', API + '/user', { cache: 'no-store', headers: headers() });
+      })
+      .then(function () {
+        if (!repo) return;
+        return probe('4. 저장소 접근', API + '/repos/' + repo, { cache: 'no-store', headers: headers() });
+      })
+      .then(function () { return steps; });
+  }
+
   function setBadge(stateName) {
     var el = document.getElementById('syncBtn');
     if (!el) return;
@@ -252,6 +305,7 @@
 
   global.Sync = {
     configured: configured, pull: pull, push: push,
-    run: run, test: test, schedule: schedule, setBadge: setBadge
+    run: run, test: test, diagnose: diagnose, cleanToken: cleanToken,
+    schedule: schedule, setBadge: setBadge
   };
 })(window);

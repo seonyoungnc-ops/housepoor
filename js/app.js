@@ -71,7 +71,13 @@
 
     /* 동기화 설정 (로컬 전용) */
     if (el.dataset.sync) {
-      S.state.sync[el.dataset.sync] = el.type === 'checkbox' ? el.checked : el.value.trim();
+      var v = el.type === 'checkbox' ? el.checked : el.value.trim();
+      if (el.dataset.sync === 'token' && typeof v === 'string') {
+        var cleaned = Sync.cleanToken(v);
+        if (cleaned !== el.value) el.value = cleaned;
+        v = cleaned;
+      }
+      S.state.sync[el.dataset.sync] = v;
       S.save();
       return;
     }
@@ -158,6 +164,21 @@
       /* ---- 동기화 ---- */
       case 'sync:now': Sync.run(false); return;
       case 'sync:test': Sync.test(); return;
+      case 'sync:diag': {
+        UI.toast('진단 중...');
+        Sync.diagnose().then(function (steps) {
+          var h = '<h3>연결 진단<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+            '<div class="note-box" style="line-height:2">' +
+            steps.map(function (s2) {
+              return '<b>' + UI.esc(s2[0]) + '</b><br>' + UI.esc(s2[1]);
+            }).join('<br><br>') + '</div>' +
+            '<div class="hint">✗ 가 처음 나오는 단계가 원인입니다. 그 줄을 알려주세요.</div>' +
+            '<button class="btn p block" data-act="sheet:close" style="margin-top:12px">확인</button>';
+          document.getElementById('sheet').innerHTML = h;
+          document.getElementById('sheetWrap').hidden = false;
+        });
+        return;
+      }
 
       /* ---- 달력 ---- */
       case 'cal:prev': UI.cal = new Date(UI.cal.getFullYear(), UI.cal.getMonth() - 1, 1); UI.render(); return;

@@ -466,6 +466,7 @@
       '<div class="row wrap">' +
       '<button class="btn b" data-act="sync:now">지금 동기화</button>' +
       '<button class="btn" data-act="sync:test">연결 확인</button>' +
+      '<button class="btn sm" data-act="sync:diag">진단</button>' +
       '<label class="row tiny" style="gap:6px;cursor:pointer"><input type="checkbox" data-sync="auto" ' +
       (sy.auto ? 'checked' : '') + ' style="width:auto"> 자동 동기화</label>' +
       '</div>' +
@@ -531,7 +532,7 @@
 
     h += '<div class="card"><div class="card-h"><h2>정보</h2></div>' +
       '<div class="tiny muted">하우스푸어 v2.0<br>' +
-      '폰트: Galmuri (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
+      '폰트: JayeonSans (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
       '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div>' +
       (UI.errors && UI.errors.length
         ? '<div class="warn-box" style="margin-top:8px"><b>최근 오류</b><br>' +
