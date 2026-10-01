@@ -774,12 +774,19 @@
       '<div class="field"><label>브랜치</label><input type="text" data-sync="branch" value="' + esc(sy.branch) + '" placeholder="main"></div>' +
       '</div>' +
       '<div class="field"><label>액세스 토큰 (Contents: Read and write)</label>' +
-      '<input type="password" data-sync="token" value="' + esc(sy.token) + '" placeholder="github_pat_..."' +
-      ' autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>' +
+      '<textarea data-sync="token" rows="2" placeholder="github_pat_... 전체를 붙여넣으세요"' +
+      ' autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"' +
+      ' style="font-size:12px;line-height:1.5;resize:vertical;word-break:break-all"' +
+      (sy.show ? '' : ' class="masked"') + '>' + esc(sy.token) + '</textarea>' +
+      '<div class="row wrap" style="margin-top:6px">' +
+      '<button class="btn sm" data-act="tok:paste">클립보드에서 붙여넣기</button>' +
+      '<button class="btn sm" data-act="tok:show">' + (sy.show ? '가리기' : '보기') + '</button>' +
+      '<button class="btn sm" data-act="tok:clear">지우기</button>' +
+      '</div>' +
       '<div class="hint">저장된 토큰: ' + (sy.token
         ? esc(String(sy.token).slice(0, 11)) + '… <b>' + String(sy.token).length + '자</b>' +
           (String(sy.token).length < 40 ? ' <span class="a exp">← 너무 짧아요. 전체가 붙여넣어지지 않았어요</span>' : ' ✓')
-        : '없음') + '</div>' +
+        : '없음') + '</div></div>' +
       '<div class="row wrap">' +
       '<button class="btn b" data-act="sync:now">지금 동기화</button>' +
       '<button class="btn" data-act="sync:test">연결 확인</button>' +
@@ -788,6 +795,13 @@
       (sy.auto ? 'checked' : '') + ' style="width:auto"> 자동 동기화</label>' +
       '</div>' +
       '<div class="hint">마지막 동기화: ' + esc(last) + '</div>' +
+      '<div class="divider"></div>' +
+      '<div class="card-h"><h2 style="font-size:13px">다른 기기로 옮기기</h2></div>' +
+      '<div class="tiny muted" style="margin-bottom:8px">PC에서 복사한 코드를 폰에 한 번 붙여넣으면 저장소·경로·토큰이 한꺼번에 설정됩니다.</div>' +
+      '<div class="row wrap">' +
+      '<button class="btn sm" data-act="tok:export"' + (Sync.configured() ? '' : ' disabled') + '>연결 코드 복사</button>' +
+      '<button class="btn sm" data-act="tok:import">연결 코드 입력</button>' +
+      '</div>' +
       '<div class="warn-box">⚠ 토큰은 이 기기의 브라우저에 그대로 저장됩니다. 반드시 <b>비공개 저장소 1개에만</b> 권한을 준 fine-grained 토큰을 쓰고, 기기를 공유하지 마세요.</div>' +
       '</div>';
 

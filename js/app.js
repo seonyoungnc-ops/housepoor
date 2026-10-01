@@ -281,6 +281,67 @@
         });
         return;
 
+      /* ---- 토큰 입력 보조 ---- */
+      case 'tok:show':
+        S.state.sync.show = !S.state.sync.show;
+        S.save();
+        UI.render({ force: true });
+        return;
+      case 'tok:clear':
+        S.state.sync.token = '';
+        S.save();
+        UI.render({ force: true });
+        UI.toast('토큰을 지웠어요');
+        return;
+      case 'tok:paste':
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          UI.toast('이 브라우저는 붙여넣기 버튼을 지원하지 않아요. 칸에 직접 붙여넣어 주세요');
+          return;
+        }
+        navigator.clipboard.readText().then(function (txt) {
+          var cleaned = Sync.cleanToken(txt);
+          if (!cleaned) { UI.toast('클립보드가 비어 있어요'); return; }
+          S.state.sync.token = cleaned;
+          S.save();
+          UI.render({ force: true });
+          UI.toast('토큰 ' + cleaned.length + '자를 붙여넣었어요');
+        }).catch(function () {
+          UI.toast('클립보드를 읽을 수 없어요. 칸에 직접 붙여넣어 주세요');
+        });
+        return;
+
+      case 'tok:export': {
+        var c2 = S.state.sync;
+        var code = 'HP1.' + btoa(unescape(encodeURIComponent(
+          [c2.repo, c2.path || 'housepoor.json', c2.branch || 'main', Sync.cleanToken(c2.token)].join('\n')
+        )));
+        copyText(code, '연결 코드를 복사했어요. 다른 기기에서 "연결 코드 입력"에 붙여넣으세요');
+        return;
+      }
+      case 'tok:import': openCodeSheet(); return;
+      case 'tok:pasteCode':
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          UI.toast('이 브라우저는 붙여넣기 버튼을 지원하지 않아요');
+          return;
+        }
+        navigator.clipboard.readText().then(function (txt) {
+          var el = document.getElementById('codeIn');
+          if (el) el.value = txt.trim();
+        }).catch(function () { UI.toast('클립보드를 읽을 수 없어요'); });
+        return;
+      case 'tok:apply': {
+        var raw = (document.getElementById('codeIn') || {}).value || '';
+        var parsed = parseCode(raw);
+        if (!parsed) { UI.toast('연결 코드 형식이 아니에요'); return; }
+        Object.assign(S.state.sync, parsed);
+        S.save();
+        document.getElementById('sheetWrap').hidden = true;
+        UI.render({ top: true, force: true });
+        UI.toast('연결 설정을 적용했어요 · 토큰 ' + parsed.token.length + '자');
+        Sync.test();
+        return;
+      }
+
       /* ---- 동기화 ---- */
       case 'sync:now': Sync.run(false); return;
       case 'sync:test': Sync.test(); return;
@@ -452,6 +513,56 @@
       '<div class="hint">월을 바꾸면 그 달의 용돈을 따로 정할 수 있어요.</div>';
     document.getElementById('sheet').innerHTML = h;
     document.getElementById('sheetWrap').hidden = false;
+  }
+
+  /* ---------- 연결 코드 ---------- */
+  function copyText(text, okMsg) {
+    var done = function () { UI.toast(okMsg); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+    } else {
+      fallback();
+    }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); }
+      catch (e) { UI.toast('복사에 실패했어요'); }
+      ta.remove();
+    }
+  }
+
+  function parseCode(raw) {
+    var t = String(raw || '').trim().replace(/\s/g, '');
+    if (t.indexOf('HP1.') !== 0) return null;
+    try {
+      var txt = decodeURIComponent(escape(atob(t.slice(4))));
+      var parts = txt.split('\n');
+      if (parts.length < 4) return null;
+      var tok = Sync.cleanToken(parts[3]);
+      if (!parts[0] || !tok) return null;
+      return { repo: parts[0], path: parts[1] || 'housepoor.json', branch: parts[2] || 'main', token: tok };
+    } catch (e) { return null; }
+  }
+
+  function openCodeSheet() {
+    var h = '<h3>연결 코드 입력<button class="icon-btn" data-act="sheet:close">✕</button></h3>' +
+      '<div class="tiny muted" style="margin-bottom:10px">다른 기기의 설정에서 <b>연결 코드 복사</b>로 받은 값을 붙여넣으세요. ' +
+      '저장소·경로·브랜치·토큰이 한 번에 설정됩니다.</div>' +
+      '<textarea id="codeIn" rows="4" placeholder="HP1..." autocomplete="off" autocapitalize="off" ' +
+      'autocorrect="off" spellcheck="false" style="font-size:12px;word-break:break-all"></textarea>' +
+      '<div class="row" style="margin-top:10px">' +
+      '<button class="btn grow" data-act="tok:pasteCode" style="text-align:center">클립보드에서</button>' +
+      '<button class="btn p grow" data-act="tok:apply" style="text-align:center">적용</button></div>';
+    document.getElementById('sheet').innerHTML = h;
+    document.getElementById('sheetWrap').hidden = false;
+    setTimeout(function () {
+      var el = document.getElementById('codeIn');
+      if (el) el.focus();
+    }, 60);
   }
 
   /* ---------- 자산 시트 ---------- */

@@ -434,3 +434,6 @@ html[data-theme="night"] .cal .c.today .e,html[data-theme="night"] .cal .c.today
 .sq.inc{background:var(--blue)}
 .sq.exp{background:var(--red)}
 .sq.sav2{background:var(--yellow)}
+
+/* ---------- v7 : 토큰 입력 ---------- */
+textarea.masked{-webkit-text-security:disc;text-security:disc;color:var(--muted)}
