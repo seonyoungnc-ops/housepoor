@@ -6,7 +6,7 @@
   var VERSION = 5;
   /* 배포 번호 : sw.js 의 CACHE 버전과 함께 올린다.
      원격 파일이 더 새 번호로 저장돼 있으면 이 기기는 옛 코드이므로 올리지 않고 새로고침한다. */
-  var BUILD = 40;
+  var BUILD = 41;
 
   var CATS = {
     expense: [
@@ -311,19 +311,45 @@
     });
   }
 
-  /* ---- 목표 ---- */
+  /* ---- 목표 ----
+     목표는 방식별로 따로 둔다 (mode : house | saving, 없으면 house).
+     화면·계산은 현재 방식의 목표만 본다 → 집 목표와 비상금 목표가 섞이지 않는다. */
+  function goalModeOf(g) { return g && g.mode === 'saving' ? 'saving' : 'house'; }
+  function curGoalMode() { return state.settings.goalMode === 'saving' ? 'saving' : 'house'; }
+  function modeGoals() {
+    var m = curGoalMode();
+    return state.goals.filter(function (g) { return goalModeOf(g) === m; });
+  }
   function goalsSorted() {
-    return state.goals.slice().sort(function (a, b) { return a.rank - b.rank; });
+    var list = modeGoals();
+    if (!list.length) { ensureModeGoal(); list = modeGoals(); }
+    return list.slice().sort(function (a, b) { return a.rank - b.rank; });
+  }
+  /* 현재 방식의 목표가 하나도 없으면 빈 목표 하나를 만든다.
+     목표 저축의 첫 목표는 id 를 고정해, 두 기기가 각자 만들어도 동기화 때 하나로 합쳐진다.
+     updatedAt 0 = 손대지 않은 기본값 (상대 기기에서 입력한 값에 밀린다) */
+  function ensureModeGoal() {
+    var m = curGoalMode();
+    if (modeGoals().length) return;
+    var id = m === 'saving' ? 'save-1' : uid();
+    if (state.goals.some(function (g) { return g.id === id; })) id = uid();
+    state.goals.push({
+      id: id, rank: 1, name: '', price: 0, mode: m,
+      region: '', size: '', shape: 'tower', floors: 12, theme: 'brick', memo: '',
+      updatedAt: 0
+    });
+    save();
   }
   function addGoal() {
-    if (state.goals.length >= 3) return null;
-    var used = state.goals.map(function (g) { return g.rank; });
+    var list = modeGoals();
+    if (list.length >= 3) return null;
+    var used = list.map(function (g) { return g.rank; });
     var rank = 1;
     while (used.indexOf(rank) >= 0) rank++;
     var g = {
-      id: uid(), rank: rank, name: '', price: 0,
+      id: uid(), rank: rank, name: '', price: 0, mode: curGoalMode(),
       region: '', size: '', shape: 'tower', floors: 12,
-      theme: THEMES[state.goals.length % THEMES.length].id, memo: '',
+      theme: THEMES[list.length % THEMES.length].id, memo: '',
       updatedAt: now()
     };
     state.goals.push(g);
@@ -331,7 +357,7 @@
     return g;
   }
   function removeGoal(id) {
-    if (state.goals.length <= 1) return false;
+    if (modeGoals().length <= 1) return false;
     state.goals = state.goals.filter(function (g) { return g.id !== id; });
     state.goalTomb[id] = now();
     if (state.activeGoal === id) state.activeGoal = null;
@@ -595,6 +621,7 @@
   function setGoalMode(m) {
     state.settings.goalMode = m === 'saving' ? 'saving' : 'house';
     touchSettings();
+    ensureModeGoal();
   }
 
   /* 대출 조건 : 목표와 무관하게 전역 1벌 */
