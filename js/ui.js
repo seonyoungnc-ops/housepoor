@@ -176,10 +176,6 @@
       '<span class="tag">금리 ' + p.loan.cond.rate + '%</span>' +
       '<span class="tag">' + p.loan.cond.years + '년</span></div>';
 
-    p.loan.warnings.forEach(function (w) {
-      h += '<div class="warn-box">⚠ ' + esc(w) + '</div>';
-    });
-
     h += '<div class="kv"><span>집값</span><b class="num">' + C.kor(p.loan.price) + '</b></div>' +
       '<div class="kv"><span>취득세 등 부대비용 (' + p.loan.cond.extraRate + '%)</span><b class="num">' + C.kor(p.loan.extra) + '</b></div>' +
       '<div class="kv"><span>필요 총액</span><b class="num">' + C.kor(p.loan.totalCost) + '</b></div>' +
@@ -573,14 +569,19 @@
           '합계가 내 집 마련 종잣돈이 됩니다.</div>';
       } else {
         h += '<div class="bigmsg" style="margin-bottom:12px">총 자산<br><b>' + C.kor(total) + '</b></div>';
-        h += list.slice().sort(function (x, y) { return y.amount - x.amount; }).map(function (a) {
-          var t = S.assetType(a.type);
-          return '<div class="fxrow" data-act="as:edit" data-id="' + a.id + '">' +
-            spr(t.spr) +
-            '<div class="t"><b>' + esc(a.name || t.name) + '</b>' +
-            '<span>' + esc(t.name) + (a.memo ? ' · ' + esc(a.memo) : '') + '</span></div>' +
-            '<div class="a num">' + C.fmt(a.amount) + '</div></div>';
-        }).join('');
+        h += '<div class="ascards">' +
+          list.slice().sort(function (x, y) { return y.amount - x.amount; }).map(function (a) {
+            var t = S.assetType(a.type);
+            return '<button class="ascard" data-act="as:edit" data-id="' + a.id + '"' +
+              ' title="' + esc(a.name || t.name) + ' · ' + C.won(a.amount) +
+              (a.memo ? ' · ' + esc(a.memo) : '') + '">' +
+              spr(t.spr) +
+              '<b>' + esc(a.name || t.name) + '</b>' +
+              '<span class="ty">' + esc(t.name) + '</span>' +
+              '<span class="am num">' + short(a.amount) + '</span></button>';
+          }).join('') +
+          '<button class="ascard add" data-act="as:add">+<span>자산 추가</span></button>' +
+          '</div>';
         if (byType.length > 1) {
           h += '<div class="divider"></div>' +
             donutOf(byType.map(function (t) { return { label: t.meta.name, amount: t.amount }; }));
