@@ -43,9 +43,14 @@
     return x;
   }
 
-  /* 기간 합계 : from~to (ISO, 포함) */
-  function sums(from, to, list) {
-    var tx = list || Store.viewTx();
+  /* 돈 계산의 기준 목록.
+     화면의 사람 필터(viewTx)는 "보기"일 뿐이므로 자산·저축 속도 계산에 쓰면 안 된다.
+     (필터를 바꿀 때마다 모은 돈이 달라지는 문제) */
+  function baseTx() {
+    return Store.visibleTx ? Store.visibleTx() : Store.state.tx;
+  }
+
+  function sumsOf(tx, from, to) {
     var r = { expense: 0, income: 0, save: 0, count: 0 };
     for (var i = 0; i < tx.length; i++) {
       var t = tx[i];
@@ -60,12 +65,22 @@
     return r;
   }
 
+  /* 화면 표시용 : 현재 보기 필터를 따른다 */
+  function sums(from, to, list) {
+    return sumsOf(list || Store.viewTx(), from, to);
+  }
+
+  /* 금액 계산용 : 필터와 무관하게 전체를 본다 */
+  function sumsAll(from, to) {
+    return sumsOf(baseTx(), from, to);
+  }
+
   /* 모은 돈 증가분 = 저축 + 남은 현금(양수일 때) : 이중 계산 방지 */
   function gainOf(r) {
     return r.save + Math.max(0, r.income - r.expense - r.save);
   }
 
-  function allSums() { return sums(null, null); }
+  function allSums() { return sumsAll(null, null); }
 
   /* 현재 자기자본(모은 돈)
      both   : 보유 자산 + 기록으로 모은 순저축 (기본)
@@ -77,7 +92,7 @@
   }
 
   function firstTxDate() {
-    var tx = Store.viewTx();
+    var tx = baseTx();
     if (!tx.length) return null;
     return tx[tx.length - 1].date;
   }
@@ -91,7 +106,7 @@
     var today = new Date();
     var toI = iso(today);
     var fromI = iso(addDays(today, -89));
-    var w = sums(fromI, toI);
+    var w = sumsAll(fromI, toI);
     if (!w.count) return { monthly: 0, basis: '최근 3개월 기록 없음' };
 
     var first = firstTxDate();
@@ -286,6 +301,19 @@
     var vis = Store.visibleTx();
     var used = sums(from, to, vis.filter(function (t) { return t.by === me && !t.shared; })).expense;
     var sharedUsed = sums(from, to, vis.filter(function (t) { return !!t.shared; })).expense;
+    /* 결제수단 내역도 같은 기준(내 지출 + 공동)으로 계산한다 — 보기 필터를 타지 않게 */
+    var mine = vis.filter(function (t) { return !!t.shared || (t.by === me && !t.shared); });
+    var pm = {};
+    mine.forEach(function (t) {
+      if (t.type !== 'expense') return;
+      if (from && t.date < from) return;
+      if (to && t.date > to) return;
+      pm[t.method || 'cash'] = (pm[t.method || 'cash'] || 0) + t.amount;
+    });
+    var methodList = (Store.METHODS || []).map(function (m) {
+      return { method: m, amount: pm[m.id] || 0 };
+    });
+
     var fixedPlan = Store.fixedTotal();
     var done = Store.fixedDone(ym);
     var fixedLeft = Store.fixedList().reduce(function (a, f) {
@@ -299,7 +327,7 @@
       sharedUsed: sharedUsed,
       left: limit - used,
       ratio: limit > 0 ? used / limit : 0,
-      byMethod: byMethod(from, to),
+      byMethod: methodList,
       fixedPlan: fixedPlan,
       fixedLeft: fixedLeft,
       leftAfterFixed: limit - used - fixedLeft
@@ -390,7 +418,7 @@
     DAY: DAY, MONTH_DAYS: MONTH_DAYS,
     fmt: fmt, won: won, kor: kor,
     iso: iso, parseDate: parseDate, addDays: addDays, diffDays: diffDays, weekStart: weekStart,
-    sums: sums, allSums: allSums, have: have, pace: pace, etaFor: etaFor,
+    sums: sums, sumsAll: sumsAll, allSums: allSums, have: have, pace: pace, etaFor: etaFor,
     loan: loan, progress: progress,
     monthMap: monthMap, byDate: byDate, byCategory: byCategory, byMember: byMember,
     byMethod: byMethod, budget: budget, yearMonths: yearMonths,

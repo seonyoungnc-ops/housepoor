@@ -282,13 +282,15 @@
     h += '</div>';
 
     /* ---- 2. 저축 페이스 ---- */
-    var per = { day: p.pace.monthly / 30.4375, week: p.pace.monthly / 4.348, month: p.pace.monthly };
+    /* 하루 = 월 / 30.4375, 일주일 = 하루 x 7 (환산 기준을 하나로 맞춘다) */
+    var perDay = p.pace.monthly / C.MONTH_DAYS;
+    var per = { day: perDay, week: perDay * 7, month: p.pace.monthly };
     h += '<div class="card hcard"><div class="card-h"><h2>저축 페이스</h2>' +
       '<span class="tiny muted">' + esc(p.pace.basis) + '</span></div>' +
       '<div class="paceboxes">' +
       [['day', '하루'], ['week', '일주일'], ['month', '한 달']].map(function (x) {
         return '<button class="pbox ' + (UI.paceUnit === x[0] ? 'on' : '') + '" data-act="pace:unit" data-u="' + x[0] + '">' +
-          '<span>' + x[1] + '</span><b class="num">' + short(Math.round(per[x[0]])) + '원</b></button>';
+          '<span>' + x[1] + '</span><b class="num">' + C.fmt(Math.round(per[x[0]])) + '원</b></button>';
       }).join('') + '</div>';
 
     if (!p.noPrice && p.short > 0) {
@@ -651,12 +653,41 @@
     if (!cats.length) h += '<div class="empty">지출 기록이 없어요</div>';
     else h += catChart(cats, catMax);
     h += '</div>';
-    return { html: h };
+    return { html: h, after: function () { fitTreemap(document); } };
   }
 
   /* ---------- 카테고리 차트 ---------- */
   var CHART_COLORS = ['#f2938c', '#f7c48d', '#ffe08a', '#9ad693', '#9cc9f0',
     '#c9adf2', '#f7b3cb', '#e0bb8e', '#b6ddc3', '#a9c4e2', '#dcc9a2'];
+
+  /* 박스가 좁을 때 넘치는 글자를 단계적으로 숨긴다 */
+  function fitTreemap(root) {
+    var boxes = (root || document).querySelectorAll('.tbox');
+    for (var i = 0; i < boxes.length; i++) {
+      var b = boxes[i];
+      b.classList.remove('h-pct', 'h-am', 'h-nm');
+      if (over(b)) b.classList.add('h-pct');
+      if (over(b)) b.classList.add('h-am');
+      if (over(b)) b.classList.add('h-nm');
+    }
+    function over(el) {
+      var cs = getComputedStyle(el);
+      var avail = el.clientHeight -
+        parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0);
+      var gap = parseFloat(cs.rowGap || cs.gap || 0) || 0;
+      var need = 0, shown = 0;
+      var kids = el.children;
+      for (var j = 0; j < kids.length; j++) {
+        var k = kids[j];
+        if (getComputedStyle(k).display === 'none') continue;
+        if (k.scrollWidth > k.clientWidth + 1) return true;
+        need += k.offsetHeight;
+        shown++;
+      }
+      if (shown > 1) need += gap * (shown - 1);
+      return need > avail + 1;
+    }
+  }
 
   function catChart(cats, catMax) {
     if (UI.chartMode === 'donut') return donutChart(cats);
@@ -713,18 +744,28 @@
     if (cur.length) rows.push({ items: cur, sum: curSum });
 
     var idx = 0;
-    return '<div class="treemap">' + rows.map(function (r) {
+    var colorOf = {};
+    var map = '<div class="treemap">' + rows.map(function (r) {
       return '<div class="trow" style="flex:' + (r.sum / total).toFixed(4) + '">' +
         r.items.map(function (c) {
           var color = CHART_COLORS[idx++ % CHART_COLORS.length];
-          var pct = Math.round(c.amount / total * 100);
+          colorOf[c.cat] = color;
           return '<div class="tbox" style="flex:' + (c.amount / r.sum).toFixed(4) +
-            ';background:' + color + '" title="' + esc(c.meta.name) + ' ' + C.fmt(c.amount) + '원">' +
+            ';background:' + color + '" title="' + esc(c.meta.name) + ' ' + C.won(c.amount) + '">' +
             '<b>' + esc(c.meta.name) + '</b>' +
-            '<span class="num">' + C.fmt(c.amount) + '</span>' +
-            '<span class="pct">' + pct + '%</span></div>';
+            '<span class="am num">' + short(c.amount) + '</span></div>';
         }).join('') + '</div>';
     }).join('') + '</div>';
+
+    /* 좁은 박스는 글자가 잘리므로 아래 범례에서 항상 전체를 볼 수 있게 한다 */
+    var legend = '<div class="legend tmlegend">' + cats.map(function (c) {
+      return '<div class="lg"><span class="sw" style="background:' + (colorOf[c.cat] || CHART_COLORS[0]) + '"></span>' +
+        '<span class="nm">' + esc(c.meta.name) + '</span>' +
+        '<b class="num">' + Math.round(c.amount / total * 100) + '%</b>' +
+        '<span class="am num">' + C.fmt(c.amount) + '</span></div>';
+    }).join('') + '</div>';
+
+    return map + legend;
   }
 
   /* ---------- 목표 : 목표 아파트 / 대출 조건 ---------- */

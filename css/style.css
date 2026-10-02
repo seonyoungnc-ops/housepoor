@@ -367,8 +367,8 @@ html[data-theme="night"] .cal .c.today .e,html[data-theme="night"] .cal .c.today
 .donutwrap .am{width:74px;text-align:right;color:var(--muted)}
 
 /* ---------- v4 : 박스(면적) 차트 ---------- */
-.treemap{display:flex;flex-direction:column;gap:3px;height:260px}
-.trow{display:flex;gap:3px;min-height:34px}
+.treemap{display:flex;flex-direction:column;gap:3px;height:280px}
+.trow{display:flex;gap:3px;min-height:46px}
 .tbox{
   border:2px solid var(--line);padding:5px 6px;overflow:hidden;min-width:0;
   display:flex;flex-direction:column;justify-content:center;color:var(--on-accent);
@@ -539,3 +539,16 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .ptr.armed .ico{transform:rotate(180deg)}
 .ptr.loading .ico{animation:ptrspin .7s steps(8) infinite}
 @keyframes ptrspin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* ---------- v11 : 박스 차트 글자 맞춤 ---------- */
+.tbox{text-align:center;padding:4px 3px;gap:1px}
+.tbox b{white-space:normal;word-break:keep-all;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tbox.h-pct .pct{display:none}
+.tbox.h-am .am{display:none}
+.tbox.h-nm b{display:none}
+.tmlegend{margin-top:10px;display:grid;grid-template-columns:1fr;gap:0}
+@media (min-width:620px){.tmlegend{grid-template-columns:1fr 1fr;column-gap:18px}}
+
+/* 저축 페이스 : 정확한 금액이 들어가도록 */
+.pbox b{font-size:13px;white-space:nowrap}
+@media (max-width:420px){.pbox b{font-size:11px}}
