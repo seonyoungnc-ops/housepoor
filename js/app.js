@@ -1095,6 +1095,105 @@
     }
   });
 
+  /* ---------- 당겨서 새로고침 ---------- */
+  (function setupPullToRefresh() {
+    var el = document.getElementById('ptr');
+    if (!el) return;
+
+    var ico = el.querySelector('.ico');
+    var txt = el.querySelector('.txt');
+    var THRESH = 64, MAX = 96;
+    var startY = 0, dist = 0, pulling = false, busy = false;
+
+    function atTop() {
+      return (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+    }
+    function blocked() {
+      return busy || !document.getElementById('sheetWrap').hidden;
+    }
+    function setH(h, armed) {
+      el.style.height = Math.round(h) + 'px';
+      el.classList.toggle('armed', !!armed);
+      if (txt) txt.textContent = armed ? '놓으면 새로고침' : '당겨서 새로고침';
+    }
+    function reset() {
+      el.classList.remove('dragging', 'armed', 'loading');
+      el.style.height = '0px';
+      dist = 0;
+    }
+
+    document.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1 || blocked() || !atTop()) { pulling = false; return; }
+      startY = e.touches[0].clientY;
+      dist = 0;
+      pulling = true;
+      el.classList.add('dragging');
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function (e) {
+      if (!pulling) return;
+      var dy = e.touches[0].clientY - startY;
+      if (dy <= 0 || !atTop()) {
+        if (dist > 0) { dist = 0; setH(0, false); }
+        if (!atTop()) { pulling = false; el.classList.remove('dragging'); }
+        return;
+      }
+      /* 감속 : 끌수록 덜 따라오게 */
+      dist = Math.min(MAX, dy * 0.5);
+      setH(dist, dist >= THRESH);
+      if (dy > 8 && e.cancelable) e.preventDefault();
+    }, { passive: false });
+
+    function end() {
+      if (!pulling) return;
+      pulling = false;
+      el.classList.remove('dragging');
+      if (dist >= THRESH) refresh();
+      else reset();
+    }
+    document.addEventListener('touchend', end, { passive: true });
+    /* 취소된 제스처는 새로고침하지 않고 되돌린다 */
+    document.addEventListener('touchcancel', function () {
+      if (!pulling) return;
+      pulling = false;
+      el.classList.remove('dragging');
+      reset();
+    }, { passive: true });
+
+    function refresh() {
+      busy = true;
+      el.classList.remove('armed');
+      el.classList.add('loading');
+      el.style.height = '44px';
+      if (ico) ico.textContent = '⟳';
+      if (txt) txt.textContent = '새로고침 중…';
+
+      var jobs = [];
+      /* 1) 동기화 */
+      if (Sync.configured()) jobs.push(Sync.run(true));
+      /* 2) 새 버전 확인 */
+      if ('serviceWorker' in navigator) {
+        jobs.push(navigator.serviceWorker.getRegistration()
+          .then(function (reg) { if (reg) safeUpdate(reg); })
+          .catch(function () { }));
+      }
+
+      var done = function () {
+        UI.render({ force: true });
+        setTimeout(function () {
+          busy = false;
+          if (ico) ico.textContent = '↓';
+          reset();
+        }, 250);
+      };
+      /* 너무 빨리 끝나도 최소 400ms 는 보여준다 */
+      Promise.all([Promise.all(jobs).catch(function () { }),
+        new Promise(function (r) { setTimeout(r, 400); })]).then(done, done);
+    }
+
+    UI.pullRefresh = refresh;
+  })();
+
   /* 창 크기가 바뀌면 건물만 다시 그린다 (레이아웃은 그대로) */
   var rsT = null;
   window.addEventListener('resize', function () {

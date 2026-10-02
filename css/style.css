@@ -46,7 +46,7 @@ html[data-theme="night"]{
 
 *{box-sizing:border-box}
 [hidden]{display:none !important}
-html{scrollbar-gutter:stable;overflow-y:scroll}
+html{scrollbar-gutter:stable;overflow-y:scroll;overscroll-behavior-y:contain}
 html,body{margin:0;padding:0}
 body{
   font-family:'JayeonSans','Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
@@ -522,3 +522,20 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .milestones .ms i{font-style:normal;font-size:16px;filter:grayscale(1);opacity:.35}
 .milestones .ms.on{border-style:solid;background:var(--yellow);color:var(--on-accent);font-weight:700}
 .milestones .ms.on i{filter:none;opacity:1}
+
+/* ---------- v10 : 당겨서 새로고침 ---------- */
+.ptr{
+  position:fixed;left:0;right:0;top:calc(var(--bar) + var(--safe-t));z-index:35;
+  height:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--panel);color:var(--muted);font-size:12px;font-weight:700;
+  border-bottom:var(--bw) solid transparent;
+  transition:height .18s ease-out;
+}
+.ptr.dragging{transition:none}
+.ptr.armed{color:var(--ink);border-bottom-color:var(--line)}
+.ptr.loading{border-bottom-color:var(--line)}
+.ptr .ico{display:inline-block;font-size:14px;line-height:1}
+.ptr.armed .ico{transform:rotate(180deg)}
+.ptr.loading .ico{animation:ptrspin .7s steps(8) infinite}
+@keyframes ptrspin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
