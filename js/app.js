@@ -769,10 +769,12 @@
     if (!parsed) { UI.toast('초대 코드 형식이 아니에요'); return; }
     var prev = Object.assign({}, S.state.sync);
     Object.assign(S.state.sync, parsed);
+    S.save();
     UI.toast('저장소 확인 중...');
     Sync.pull().then(function (r) {
       if (!r.data) {
         S.state.sync = prev;
+        S.save();
         UI.toast('아직 저장된 데이터가 없어요. 초대한 사람이 먼저 동기화해야 해요');
         return;
       }
@@ -780,6 +782,7 @@
       renderJoinPick();
     }).catch(function (e) {
       S.state.sync = prev;
+      S.save();
       UI.toast((e && e.message) || '저장소에 연결할 수 없어요');
     });
   }
@@ -1094,6 +1097,35 @@
       if (btn) btn.click();
     }
   });
+
+  /* ---------- 저장 공간 영속화 ----------
+     요청하지 않으면 브라우저가 저장 공간이 부족할 때 데이터를 비울 수 있다.
+     iOS 는 홈 화면에 설치한 앱에 더 관대하지만, 요청해 두는 편이 안전하다. */
+  UI.storageInfo = { persisted: null, usage: 0, quota: 0 };
+  (function askPersist() {
+    if (!navigator.storage) return;
+    var st = navigator.storage;
+    var read = function () {
+      if (st.estimate) {
+        st.estimate().then(function (e) {
+          UI.storageInfo.usage = e.usage || 0;
+          UI.storageInfo.quota = e.quota || 0;
+        }).catch(function () { });
+      }
+    };
+    if (st.persisted) {
+      st.persisted().then(function (ok) {
+        UI.storageInfo.persisted = ok;
+        if (ok || !st.persist) { read(); return; }
+        return st.persist().then(function (granted) {
+          UI.storageInfo.persisted = granted;
+          read();
+        });
+      }).catch(function () { read(); });
+    } else {
+      read();
+    }
+  })();
 
   /* ---------- 당겨서 새로고침 ---------- */
   (function setupPullToRefresh() {

@@ -1158,6 +1158,17 @@
       '<div class="tiny muted">하우스푸어 v5.0 · 빌드 ' + S.BUILD + '<br>' +
       '폰트: JayeonSans (SIL OFL) · 모든 계산은 참고용 추정치입니다.<br>' +
       '기록 ' + S.state.tx.length + '건 · 목표 ' + S.state.goals.length + '개 · 멤버 ' + S.state.members.length + '명</div>' +
+      (function () {
+        var si = UI.storageInfo || {};
+        var mode = (window.matchMedia('(display-mode: standalone)').matches ||
+          window.navigator.standalone === true) ? '설치됨(앱)' : '브라우저';
+        var ps = si.persisted === true ? '보호됨 ✓'
+          : (si.persisted === false ? '<span class="a exp">보호 안 됨 — 브라우저가 데이터를 비울 수 있어요</span>'
+            : '확인 불가');
+        return '<div class="tiny muted" style="margin-top:8px">' +
+          '실행 환경: ' + mode + '<br>저장 공간: ' + ps +
+          (si.usage ? ' · ' + Math.round(si.usage / 1024) + 'KB 사용' : '') + '</div>';
+      })() +
       (UI.errors && UI.errors.length
         ? '<div class="warn-box" style="margin-top:8px"><b>최근 오류</b><br>' +
           UI.errors.slice(-3).map(esc).join('<br>') +
